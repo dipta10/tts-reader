@@ -4,6 +4,7 @@ import threading
 import time
 from subprocess import Popen
 from typing import List
+from plyer import notification
 import signal
 
 from flask import Flask
@@ -17,13 +18,13 @@ queue: List = []
 script_process = None
 play_process = None
 
-
 '''
 Todo:
     - add notifications
     - write logs to a file
     - implement a queue
     - implement stop signal
+    - implement a logger
 '''
 
 
@@ -50,15 +51,16 @@ def _process_read_text():
                 print('done playing.')
             except Exception as e:
                 print(e)
+                notify('error playing text :(')
                 print(f'error reading text: {text}')
         else:
             sleep_time = 0.5
-            # print(f'found nothing in the queue, going to sleep for {sleep_time}s')
             time.sleep(sleep_time)
 
 
 readThread = threading.Thread(target=_process_read_text, daemon=True)
 readThread.start()
+
 
 @app.route('/read')
 def read():
@@ -85,16 +87,31 @@ def read_text():
 def stop():
     print(f'clearing queue')
     queue.clear()
-    if script_process is not None:
-        print(f'pscript_process id: {script_process.pid}')
-        os.kill(script_process.pid, signal.SIGKILL)
-    if play_process is not None:
-        print(f'play_process pid: {play_process.pid}')
-        # os.kill(play_process.pid, signal.SIGKILL)
-        os.killpg(play_process.pid, signal.SIGTERM)
-        # os.kill(play_process.pid, signal.SIGQUIT)
-        print(f'play_process pid: {play_process} KILLED')
+    try:
+        if script_process is not None:
+            print(f'pscript_process id: {script_process.pid}')
+            os.kill(script_process.pid, signal.SIGKILL)
+        if play_process is not None:
+            print(f'play_process pid: {play_process.pid}')
+            # os.kill(play_process.pid, signal.SIGKILL)
+            os.killpg(play_process.pid, signal.SIGTERM)
+            # os.kill(play_process.pid, signal.SIGQUIT)
+            print(f'play_process pid: {play_process} KILLED')
+    except Exception as e:
+        print('error stopping player')
+        print(e)
+        notify('error stopping tts :(')
     return 'queue cleared..'
+
+
+# notification doesn't work, at least with i3wm
+def notify(msg: str):
+    notification.notify(
+        title='tts-reader',
+        message=msg,
+        app_icon=None,
+        timeout=2,
+    )
 
 
 @app.route('/')
