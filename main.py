@@ -6,6 +6,7 @@ from subprocess import Popen
 from typing import List
 from plyer import notification
 import signal
+import uuid
 
 from flask import Flask
 
@@ -17,6 +18,7 @@ cnt = 0
 queue: List = []
 script_process = None
 play_process = None
+audio_file_path = '/home/dipta10/Desktop/temp/audio/'
 
 '''
 Todo:
@@ -33,26 +35,25 @@ def _process_read_text():
     global play_process
     while True:
         if len(queue) != 0:
-            print('found someting in the queue...')
-            text = queue.pop(0)
+            print('found something in the queue...')
+            file_name = queue.pop(0)
             try:
-                script_process = Popen(['./script.sh', f'"{text}"'])
-                script_process.wait()
                 script_process = None
-                print('done reading...')
-
                 print('about to play...')
                 # play_cmd = 'ffplay -hide_banner -loglevel panic -nostats -autoexit -nodisp  -af "atempo=1.4" ~/Desktop/welcome.wav'.split(' ')
                 # https://stackoverflow.com/questions/23228650/python-cannot-kill-process-using-process-terminate
-                play_process = Popen('./play_script.sh', start_new_session=True)
+                play_process = Popen(['./play_script.sh', file_name], start_new_session=True)
                 print(play_process)
+
                 play_process.wait()
                 play_process = None
                 print('done playing.')
             except Exception as e:
                 print(e)
-                notify('error playing text :(')
-                print(f'error reading text: {text}')
+                notify('TTS-Reader: error playing text :(')
+                print(f'error reading text: {file_name}')
+            finally:
+                os.remove(os.path.join(audio_file_path, file_name))
         else:
             sleep_time = 0.5
             time.sleep(sleep_time)
@@ -71,9 +72,18 @@ def read():
 
 def add_text():
     out_binary = subprocess.check_output(['xclip', '-o', '-selection primary'])
-    out: str = out_binary.decode('utf-8')
+    text: str = out_binary.decode('utf-8')
     # todo: if there's an error, find a way to show a notification
-    queue.append(out)
+
+    try:
+        file_name = f'{uuid.uuid4()}.wav'
+        process = Popen(['./script.sh', f'{file_name}', f'"{text}"'])
+        process.wait()
+        queue.append(file_name)
+    except Exception as e:
+        print(e)
+        notify('TTS-Reader: something went wrong when creating audio output :(')
+
     print(queue)
 
 
@@ -85,6 +95,7 @@ def read_text():
 
 @app.route('/stop')
 def stop():
+    # todo: remove audio files if there are any
     print(f'clearing queue')
     queue.clear()
     try:

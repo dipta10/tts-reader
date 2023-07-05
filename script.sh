@@ -1,7 +1,8 @@
 #!/bin/bash
 
 
-selected_text=$1
+output_text=$1
+selected_text=$2
 
 echo "selected text:"
 echo $selected_text
@@ -11,7 +12,7 @@ touch from-i3.txt
 echo "$selected_text" > from-i3.txt
 
 echo "$selected_text" | \
-  ./piper --model en-us-amy-low.onnx --output_file ~/Desktop/welcome.wav
+  ./piper --model en-us-amy-low.onnx --output_file /home/dipta10/Desktop/temp/audio/$output_text
 
 # echo "$selected_text" | \
 #   ./piper --model en-us-ryan-high.onnx --output_file ~/Desktop/welcome.wav
