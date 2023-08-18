@@ -8,7 +8,9 @@ echo "selected text:"
 echo $selected_text
 
 #cd /home/dipta10/Desktop/packages/piper/piper
-cd /home/dipta10/Downloads/piper-new/piper
+echo "before"
+pwd
+cd /home/dipta10/Downloads/piper
 echo "cur dir"
 pwd
 touch from-i3.txt
