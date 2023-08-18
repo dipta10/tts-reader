@@ -18,7 +18,7 @@ cnt = 0
 queue: List = []
 script_process = None
 play_process = None
-audio_file_path = '/home/dipta10/Desktop/temp/audio/'
+audio_file_path = '/tmp'
 
 '''
 Todo:

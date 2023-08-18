@@ -7,17 +7,13 @@ selected_text=$2
 echo "selected text:"
 echo $selected_text
 
-#cd /home/dipta10/Desktop/packages/piper/piper
-echo "before"
-pwd
-cd /home/dipta10/Downloads/piper
+cd ./lib/piper
 echo "cur dir"
 pwd
-touch from-i3.txt
 echo "$selected_text" > from-i3.txt
 
 echo "$selected_text" | \
-  ./piper --model en_US-amy-medium.onnx --output_file /home/dipta10/Desktop/temp/audio/$output_text
+  ./piper --model en_US-amy-medium.onnx --output_file /tmp/$output_text
 
 
 
