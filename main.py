@@ -71,8 +71,14 @@ def read():
 
 
 def add_text():
-    out_binary = subprocess.check_output(['xclip', '-o', '-selection primary'])
-    text: str = out_binary.decode('utf-8')
+    try:
+        out_binary = subprocess.check_output(['xclip', '-o', '-selection primary'])
+        text: str = out_binary.decode('utf-8')
+    except Exception as e:
+        print(e)
+        notify('Unable to get selected text')
+        return
+
     # todo: if there's an error, find a way to show a notification
 
     try:
