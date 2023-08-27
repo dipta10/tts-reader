@@ -12,7 +12,6 @@ from flask import Flask
 
 app = Flask(__name__)
 
-cnt = 0
 # it is recommended to use dqueue I think
 # https://stackoverflow.com/questions/71290441/how-to-run-a-thread-endlessly-in-python
 queue: List = []
@@ -101,7 +100,6 @@ def read_text():
 
 @app.route('/stop')
 def stop():
-    # todo: remove audio files if there are any
     print(f'clearing queue')
     queue.clear()
     try:
@@ -129,12 +127,3 @@ def notify(msg: str):
         app_icon=None,
         timeout=2,
     )
-
-
-@app.route('/')
-def hello():
-    global cnt
-    cnt += 1
-    print(cnt)
-
-    return 'hola'
