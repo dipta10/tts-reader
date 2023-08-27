@@ -78,8 +78,6 @@ def add_text():
         notify('Unable to get selected text')
         return
 
-    # todo: if there's an error, find a way to show a notification
-
     try:
         file_name = f'{uuid.uuid4()}.wav'
         process = Popen(['./script.sh', f'{file_name}', f'"{text}"'])
@@ -119,7 +117,6 @@ def stop():
     return 'queue cleared..'
 
 
-# notification doesn't work, at least with i3wm
 def notify(msg: str):
     notification.notify(
         title='tts-reader',
