@@ -77,12 +77,15 @@ def add_text():
         print(e)
         notify('Unable to get selected text')
         return
-
+    tokens = text.split('. ')
     try:
-        file_name = f'{uuid.uuid4()}.wav'
-        process = Popen(['./script.sh', f'{file_name}', f'"{text}"'])
-        process.wait()
-        queue.append(file_name)
+        while tokens:
+            text = ' '.join(tokens[:1])
+            tokens = tokens[1:]
+            file_name = f'{uuid.uuid4()}.wav'
+            process = Popen(['./script.sh', f'{file_name}', f'"{text}"'])
+            process.wait()
+            queue.append(file_name)
     except Exception as e:
         print(e)
         notify('TTS-Reader: something went wrong when creating audio output :(')
