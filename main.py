@@ -72,6 +72,7 @@ def read():
 def sanitizeText(text: str):
     # for example in pdf " better perfor‐\nmance"
     text = text.replace('‐\n', '')
+    text = text.replace('‐ ', '')
     return text
 
 
