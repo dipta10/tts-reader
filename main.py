@@ -69,6 +69,12 @@ def read():
     return 'none'
 
 
+def sanitizeText(text: str):
+    # for example in pdf " better perfor‐\nmance"
+    text = text.replace('‐\n', '')
+    return text
+
+
 def add_text():
     try:
         out_binary = subprocess.check_output(['xclip', '-o', '-selection primary'])
@@ -82,6 +88,7 @@ def add_text():
         while tokens:
             text = ' '.join(tokens[:1])
             tokens = tokens[1:]
+            text = sanitizeText(text)
             file_name = f'{uuid.uuid4()}.wav'
             process = Popen(['./script.sh', f'{file_name}', f'"{text}"'])
             process.wait()
