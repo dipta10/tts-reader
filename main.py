@@ -18,6 +18,7 @@ queue: List = []
 script_process = None
 play_process = None
 audio_file_path = '/tmp'
+tokens = []
 
 '''
 Todo:
@@ -77,6 +78,7 @@ def sanitizeText(text: str):
 
 
 def add_text():
+    global tokens
     try:
         out_binary = subprocess.check_output(['xclip', '-o', '-selection primary'])
         text: str = out_binary.decode('utf-8')
@@ -110,6 +112,7 @@ def read_text():
 @app.route('/stop')
 def stop():
     print(f'clearing queue')
+    global tokens
     queue.clear()
     try:
         if script_process is not None:
@@ -119,6 +122,7 @@ def stop():
             print(f'play_process pid: {play_process.pid}')
             # os.kill(play_process.pid, signal.SIGKILL)
             os.killpg(play_process.pid, signal.SIGTERM)
+            tokens = []
             # os.kill(play_process.pid, signal.SIGQUIT)
             print(f'play_process pid: {play_process} KILLED')
     except Exception as e:
