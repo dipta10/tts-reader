@@ -8,7 +8,7 @@ Select text from anywhere and read aloud.
 
 ### Steps to run
 - Install requirements: `pip install -r requirements.txt`
-- Run the application: `flask run`
+- Run the application: `python3 main.py`
 - Now select some text from your browser.
 - Now run `curl --request GET --url http://localhost:5000/read`
 - It should now read aloud the selected text.

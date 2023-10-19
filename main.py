@@ -22,9 +22,7 @@ tokens = []
 
 '''
 Todo:
-    - add notifications
     - write logs to a file
-    - implement a queue
     - implement stop signal
     - implement a logger
 '''
@@ -139,3 +137,5 @@ def notify(msg: str):
         app_icon=None,
         timeout=2,
     )
+
+app.run(host="0.0.0.0", port=5000)
