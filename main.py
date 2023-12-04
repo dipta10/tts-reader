@@ -7,6 +7,7 @@ from typing import List
 from plyer import notification
 import signal
 import uuid
+from unidecode import unidecode
 
 from flask import Flask
 
@@ -69,6 +70,8 @@ def read():
 
 
 def sanitizeText(text: str):
+    # 𝗟𝗮𝘁𝗲𝗻𝗰𝘆 -> Latency
+    text = unidecode(text)
     # for example in pdf " better perfor‐\nmance"
     text = text.replace('‐\n', '')
     text = text.replace('‐ ', '')
