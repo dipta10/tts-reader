@@ -9,7 +9,8 @@ Select text from anywhere and read aloud 🎧
 ### Steps to run
 1. Install requirements and run the application:
     ```bash
-    pip install -r requirements.txt && python3 main.py
+    pip install -r requirements.txt 
+    python main.py --port 5000 --playback_speed=1.0 --volume_level=.8
     ```
 2. Select some text from your browser.
 3. Run the following command to have the selected text read aloud:
