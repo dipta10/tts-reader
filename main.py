@@ -20,6 +20,7 @@ parser = argparse.ArgumentParser(
 parser.add_argument("-p", "--port", type=int, default=5000, help="port number")
 parser.add_argument("--playback_speed", type=float, default=1.2, help="playback speed")
 parser.add_argument("--volume_level", type=float, default=1.0, help="volume level")
+parser.add_argument("--wayland", default=False, action=argparse.BooleanOptionalAction, help="assume wayland instead")
 
 # it is recommended to use dqueue I think
 # https://stackoverflow.com/questions/71290441/how-to-run-a-thread-endlessly-in-python
@@ -99,7 +100,11 @@ def sanitizeText(text: str):
 def add_text():
     global tokens
     try:
-        out_binary = subprocess.check_output(["xclip", "-o", "-selection primary"])
+        is_wayland = bool(parser.parse_args().wayland)
+        if is_wayland:
+            out_binary = subprocess.check_output(["wl-paste", "-p"])
+        else:
+            out_binary = subprocess.check_output(["xclip", "-o", "-selection primary"])
         text: str = out_binary.decode("utf-8")
     except Exception as e:
         print(e)
