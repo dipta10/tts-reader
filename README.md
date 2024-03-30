@@ -8,11 +8,11 @@ Select text from anywhere and read aloud 🎧
 - curl
 
 ### Steps to run
-1. Download models and their respective configs in the `models` directory. Download from [here](https://github.com/rhasspy/piper/blob/master/VOICES.md)
+1. Download models and their respective configs in the `models` directory. See [here](https://github.com/rhasspy/piper/blob/master/VOICES.md)
 2. Install requirements and run the application:
     ```bash
     pip install -r requirements.txt 
-    python main.py --port 5000 --playback_speed=1.0 --volume_level=.8
+    python main.py --port 5000 --playback_speed=1.0 --volume_level=.8 --model models/yourmodel.onnx --model_config models/yourmodel.onnx.json
     ```
 3. Select some text from your browser.
 4. Run the following command to have the selected text read aloud:
