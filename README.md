@@ -4,6 +4,7 @@ Select text from anywhere and read aloud 🎧
 ### Requirements
 - ffmpeg
 - xclip
+- wl-clipboard (Wayland only)
 - curl
 
 ### Steps to run
