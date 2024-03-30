@@ -5,6 +5,7 @@ import subprocess
 import threading
 import time
 import uuid
+import sys
 from subprocess import Popen
 from typing import List
 
@@ -25,6 +26,10 @@ parser.add_argument(
     default=False,
     action=argparse.BooleanOptionalAction,
     help="assume wayland instead",
+)
+parser.add_argument("--model", type=str, default=None, help="path to the model")
+parser.add_argument(
+    "--model_config", type=str, default=None, help="path to the model config"
 )
 
 # it is recommended to use dqueue I think
@@ -122,7 +127,15 @@ def add_text():
             tokens = tokens[1:]
             text = sanitizeText(text)
             file_name = f"{uuid.uuid4()}.wav"
-            process = Popen(["./script.sh", f"{file_name}", f'"{text}"'])
+            process = Popen(
+                [
+                    "./script.sh",
+                    f"{file_name}",
+                    f'"{text}"',
+                    parser.parse_args().model,
+                    parser.parse_args().model_config,
+                ]
+            )
             process.wait()
             queue.append(file_name)
     except Exception as e:
@@ -164,4 +177,8 @@ def notify(msg: str):
 
 
 if __name__ == "__main__":
+    if parser.parse_args().model == None or parser.parse_args().model_config == None:
+        print("Please provide both the --model and --model_config arguments")
+        sys.exit(1)
+
     app.run(host="0.0.0.0", port=parser.parse_args().port)

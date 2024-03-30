@@ -8,17 +8,18 @@ Select text from anywhere and read aloud 🎧
 - curl
 
 ### Steps to run
-1. Install requirements and run the application:
+1. Download models and their respective configs in the `models` directory. Download from [here](https://github.com/rhasspy/piper/blob/master/VOICES.md)
+2. Install requirements and run the application:
     ```bash
     pip install -r requirements.txt 
     python main.py --port 5000 --playback_speed=1.0 --volume_level=.8
     ```
-2. Select some text from your browser.
-3. Run the following command to have the selected text read aloud:
+3. Select some text from your browser.
+4. Run the following command to have the selected text read aloud:
     ```bash
     curl --request GET --url http://localhost:5000/read
     ```
-4. If you want to stop reading aloud in the middle, use:
+5. If you want to stop reading aloud in the middle, use:
     ```bash
     curl --request GET --url http://localhost:5000/stop
     ```
