@@ -5,3 +5,4 @@ __pycache__
 venv
 /.vscode
 models/*
+!models/README.md

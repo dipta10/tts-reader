@@ -2,17 +2,17 @@
 Select text from anywhere and read aloud 🎧
 
 ### Requirements
-- ffmpeg
-- xclip
-- wl-clipboard (Wayland only)
 - curl
+- ffmpeg
+- wl-clipboard (if you're on Wayland)
+- xclip (if you're on X11)
 
 ### Steps to run
 1. Download models and their respective configs in the `models` directory. See [here](https://github.com/rhasspy/piper/blob/master/VOICES.md)
 2. Install requirements and run the application:
     ```bash
     pip install -r requirements.txt 
-    python main.py --port 5000 --playback_speed=1.0 --volume_level=.8 --model models/yourmodel.onnx --model_config models/yourmodel.onnx.json
+    python main.py --port 5000 --playback_speed=1.0 --volume_level=.8 --model models/yourmodel.onnx --model_config models/yourmodel.onnx.json --wayland
     ```
 3. Select some text from your browser.
 4. Run the following command to have the selected text read aloud:
@@ -39,4 +39,4 @@ I was looking for an alternative for TTS reader where with a keybind I can make 
 Since I didn't find a standalone application that can do it or perform as well as TTS Readers available on Windows, I decided to create one for myself using [Piper](https://github.com/rhasspy/piper) as a side project.
 
 ### Todo
-- [ ] Use Piper python library and remove lib from repo
+- [*] Use Piper python library and remove lib from repo
