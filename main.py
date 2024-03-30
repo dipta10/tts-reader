@@ -20,7 +20,12 @@ parser = argparse.ArgumentParser(
 parser.add_argument("-p", "--port", type=int, default=5000, help="port number")
 parser.add_argument("--playback_speed", type=float, default=1.2, help="playback speed")
 parser.add_argument("--volume_level", type=float, default=1.0, help="volume level")
-parser.add_argument("--wayland", default=False, action=argparse.BooleanOptionalAction, help="assume wayland instead")
+parser.add_argument(
+    "--wayland",
+    default=False,
+    action=argparse.BooleanOptionalAction,
+    help="assume wayland instead",
+)
 
 # it is recommended to use dqueue I think
 # https://stackoverflow.com/questions/71290441/how-to-run-a-thread-endlessly-in-python
