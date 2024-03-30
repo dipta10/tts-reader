@@ -39,4 +39,4 @@ I was looking for an alternative for TTS reader where with a keybind I can make 
 Since I didn't find a standalone application that can do it or perform as well as TTS Readers available on Windows, I decided to create one for myself using [Piper](https://github.com/rhasspy/piper) as a side project.
 
 ### Todo
-- [*] Use Piper python library and remove lib from repo
+- [x] Use Piper python library and remove lib from repo
