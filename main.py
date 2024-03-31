@@ -123,7 +123,7 @@ def add_text():
     tokens = text.split(". ")
     try:
         while tokens:
-            text = " ".join(tokens[:1])
+            text = tokens[0].strip() + "."
             tokens = tokens[1:]
             text = sanitizeText(text)
             file_name = f"{uuid.uuid4()}.wav"
