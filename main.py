@@ -45,49 +45,88 @@ parser.add_argument(
 # it is recommended to use dqueue I think
 # https://stackoverflow.com/questions/71290441/how-to-run-a-thread-endlessly-in-python
 queue: List = []
-script_process = None
-play_process = None
+current_process = None
 audio_file_path = "/tmp"
 tokens = []
-stop_all = False
-
-"""
-Todo:
-    - write logs to a file
-    - implement stop signal
-    - implement a logger
-"""
+stop_playing = False
 
 
 def _process_read_text():
-    global script_process
-    global play_process
+    global current_process
 
-    playback_speed = str(parser.parse_args().playback_speed)
-    volume_level = str(parser.parse_args().volume_level)
+    ffplay_path = shutil.which("ffplay")
+    if ffplay_path == None:
+        print("ffplay not found in PATH")
+        sys.exit(1)
+
+    pa = parser.parse_args()
+    playback_speed = str(pa.playback_speed)
+    volume_level = str(pa.volume_level)
+
     while True:
         if len(queue) == 0:
             sleep_time = 0.5
             time.sleep(sleep_time)
             continue
 
-        file_name = queue.pop(0)
+        text = queue.pop(0)
         try:
-            script_process = None
-            # play_cmd = 'ffplay -hide_banner -loglevel panic -nostats -autoexit -nodisp  -af "atempo=1.4" ~/Desktop/welcome.wav'.split(' ')
-            # https://stackoverflow.com/questions/23228650/python-cannot-kill-process-using-process-terminate
-            play_process = Popen(
-                ["./play_script.sh", file_name, playback_speed, volume_level],
-                start_new_session=True,
-            )
+            out = None
+            current_process = None
 
-            play_process.wait()
-            play_process = None
+            if not stop_playing:
+                process = Popen(
+                    [
+                        sys.executable,
+                        "-m",
+                        "piper",
+                        "--output-raw",
+                        "--model",
+                        pa.model,
+                        "--config",
+                        pa.model_config,
+                    ],
+                    stdin=subprocess.PIPE,
+                    stdout=subprocess.PIPE,
+                    start_new_session=True,
+                )
+                current_process = process
+                out, _ = process.communicate(input=text.encode())
+                current_process = None
+
+            if not stop_playing:
+                ffplay_process = Popen(
+                    [
+                        ffplay_path,
+                        "-hide_banner",
+                        "-loglevel",
+                        "panic",
+                        "-nostats",
+                        "-autoexit",
+                        "-nodisp",
+                        "-af",
+                        f"atempo={pa.playback_speed},volume={pa.volume_level}",
+                        "-f",
+                        "s16le",
+                        "-ar",
+                        "22050",
+                        "-ac",
+                        "1",
+                        "-",
+                    ],
+                    stdin=subprocess.PIPE,
+                    start_new_session=True,
+                )
+                current_process = ffplay_process
+                ffplay_process.communicate(input=out)
+                current_process = None
+
         except Exception as e:
             print("error", e)
             notify("TTS-Reader: error playing text :(")
         finally:
-            os.remove(os.path.join(audio_file_path, file_name))
+            pass
+            # os.remove(os.path.join(audio_file_path, file_name))
 
 
 readThread = threading.Thread(target=_process_read_text, daemon=True)
@@ -96,6 +135,8 @@ readThread.start()
 
 @app.route("/read")
 def read():
+    global stop_playing
+    stop_playing = False
     add_text()
     return ""
 
@@ -136,64 +177,13 @@ def add_text():
         return
 
     tokens = text.split(". ")
-    ffplay_path = shutil.which("ffplay")
-    if ffplay_path == None:
-        print("ffplay not found in PATH")
-        sys.exit(1)
 
     try:
         while tokens:
-            global stop_all
-            if stop_all:
-                print('Stopping...')
-                stop_all = False
-                break
-
             text = tokens[0].strip() + "."
             tokens = tokens[1:]
             text = sanitizeText(text)
-            file_name = f"{uuid.uuid4()}.wav"
-
-            process = Popen(
-                [
-                    sys.executable,
-                    "-m",
-                    "piper",
-                    "--output-raw",
-                    "--model",
-                    parser.parse_args().model,
-                    "--config",
-                    parser.parse_args().model_config,
-                ],
-                stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE,
-            )
-            out, _ = process.communicate(input=text.encode())
-
-            process_play = Popen(
-                [
-                    ffplay_path,
-                    "-hide_banner",
-                    "-loglevel",
-                    "panic",
-                    "-nostats",
-                    "-autoexit",
-                    "-nodisp",
-                    "-af",
-                    f"atempo={pa.playback_speed},volume={pa.volume_level}",
-                    "-f",
-                    "s16le",
-                    "-ar",
-                    "22050",
-                    "-ac",
-                    "1",
-                    "-",
-                ],
-                stdin=subprocess.PIPE,
-            )
-            process_play.communicate(input=out)
-
-            # queue.append(file_name)
+            queue.append(text)
 
     except Exception as e:
         print(e)
@@ -207,20 +197,16 @@ def read_text():
 
 @app.route("/stop")
 def stop():
-    global stop_all
-    stop_all = True
-
     global tokens
+    global stop_playing
+    stop_playing = True
     queue.clear()
     try:
-        if script_process is not None:
-            print(f"pscript_process id: {script_process.pid}")
-            os.kill(script_process.pid, signal.SIGKILL)
-        if play_process is not None:
-            print(f"play_process pid: {play_process.pid}")
-            os.killpg(play_process.pid, signal.SIGTERM)
+        if current_process is not None:
+            print(f"current_process pid: {current_process.pid}")
+            os.killpg(current_process.pid, signal.SIGTERM)
             tokens = []
-            print(f"play_process pid: {play_process} KILLED")
+            print(f"current_process pid: {current_process} KILLED")
     except Exception as e:
         print(e)
         notify("error stopping tts :(")
