@@ -23,24 +23,36 @@ parser.add_argument("-p", "--port", type=int, default=5000, help="port number")
 parser.add_argument(
     "-s", "--playback_speed", type=float, default=1.2, help="playback speed"
 )
-parser.add_argument("--volume", type=float, default=1.0, help="volume between 0 and 1")
 parser.add_argument(
+    "-v", "--volume", type=float, default=1.0, help="volume between 0 and 1"
+)
+parser.add_argument(
+    "-r",
+    "--play_sample_rate",
+    type=int,
+    default=22050,
+    help="playback sample rate. check the sample rate your model outputs at, https://github.com/rhasspy/piper/blob/master/TRAINING.md",
+)
+parser.add_argument(
+    "-f",
     "--full_selection",
     default=False,
     action=argparse.BooleanOptionalAction,
     help="generate and read the full selection at a time instead of the default one sentence",
 )
 parser.add_argument(
+    "-w",
     "--wayland",
     default=False,
     action=argparse.BooleanOptionalAction,
     help="assume wayland instead",
 )
-parser.add_argument("--model", type=str, default=None, help="path to the model")
+parser.add_argument("-m", "--model", type=str, default=None, help="path to the model")
 parser.add_argument(
-    "--model_config", type=str, default=None, help="path to the model config"
+    "-c", "--model_config", type=str, default=None, help="path to the model config"
 )
 parser.add_argument(
+    "-d",
     "--debug",
     default=False,
     action=argparse.BooleanOptionalAction,
@@ -63,7 +75,8 @@ def thread_play():
     ffplay_path = shutil.which("ffplay")
     if ffplay_path == None:
         print("ffplay not found in PATH")
-        sys.exit(1)
+        notify("ffplay not found in PATH")
+        fatal_exit()
 
     while True:
         audio = pass_queue.get()
@@ -83,7 +96,7 @@ def thread_play():
                         "-f",
                         "s16le",
                         "-ar",
-                        "22050",
+                        f"{parsed.play_sample_rate}",
                         "-ac",
                         "1",
                         "-",
@@ -96,7 +109,7 @@ def thread_play():
 
         except Exception as e:
             print(e)
-            notify("Failed to generate/play")
+            notify("Failed to play")
 
         finally:
             pass
@@ -110,7 +123,7 @@ play_thread.start()
 def read():
     global stop_playing
     stop_playing = False
-    
+
     num_chars = 0
 
     try:
@@ -133,7 +146,7 @@ def read():
             while tokens:
                 text = tokens[0].strip() + "."
                 tokens = tokens[1:]
-                text = sanitizeText(text)
+                text = sanitize_text(text)
 
                 out = generate_audio(text)
                 if out != None:
@@ -145,9 +158,10 @@ def read():
 
     except Exception as e:
         print(e)
-        notify("Failed while organizing text for TTS")
+        notify("Failed while organizing/generating text")
+        fatal_exit()
 
-    return f"Generated and queued {num_chars} characeters for playback"
+    return f"Generated and queued {num_chars} characters for playback"
 
 
 def generate_audio(text):
@@ -174,7 +188,7 @@ def generate_audio(text):
     return out
 
 
-def sanitizeText(text: str):
+def sanitize_text(text: str):
     text = unidecode(text)
     text = text.replace("‐\n", "")
     text = text.replace("‐ ", "")
@@ -183,10 +197,10 @@ def sanitizeText(text: str):
 
 @app.route("/stop")
 def stop():
+    global gen_process
+    global play_process
     global stop_playing
     global pass_queue
-    global play_process
-    global gen_process
 
     num_queue = pass_queue.qsize()
 
@@ -196,7 +210,7 @@ def stop():
 
     try:
         if gen_process is not None:
-            print(f"Killing gen_process ")
+            print(f"Killing gen_process {gen_process.pid}")
             os.killpg(gen_process.pid, signal.SIGTERM)
 
         if play_process is not None:
@@ -210,13 +224,17 @@ def stop():
     return f"Queue cleared of pending {num_queue} items. Killed the generate and play processes if running"
 
 
-def notify(msg: str):
+def notify(msg):
     notification.notify(
         title="tts-reader",
         message=msg,
         app_icon=None,
         timeout=2,
     )
+
+
+def fatal_exit():
+    os.kill(os.getpid(), signal.SIGTERM)
 
 
 if __name__ == "__main__":
