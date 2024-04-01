@@ -20,12 +20,12 @@ parser = argparse.ArgumentParser(
 parser.add_argument("-i", "--ip", type=str, default="127.0.0.1", help="IP address")
 parser.add_argument("-p", "--port", type=int, default=5000, help="Port")
 parser.add_argument(
-    "-s", "--playback_speed", type=float, default=1.2, help="Playback speed"
+    "-s", "--playback_speed", type=float, default=1.0, help="Playback speed"
 )
 parser.add_argument("-v", "--volume", type=float, default=1.0, help="Volume [0-1]")
 parser.add_argument(
     "-r",
-    "--play_sample_rate",
+    "--playback_sample_rate",
     type=int,
     default=22050,
     help="Playback sample rate. More info at https://github.com/rhasspy/piper/blob/master/TRAINING.md",
@@ -99,7 +99,7 @@ def thread_play():
                         "-f",
                         "s16le",
                         "-ar",
-                        f"{parsed.play_sample_rate}",
+                        f"{parsed.playback_sample_rate}",
                         "-ac",
                         "1",
                         "-",
@@ -234,14 +234,31 @@ def status():
     global gen_process
     global stop_event
     global pass_queue
+    global parsed
 
     return (
         f"Generator process running? {'Yes at ' + str(gen_process.pid) if gen_process != None else 'No'}\n"
         + f"Playback process running? {'Yes at ' + str(play_process.pid) if play_process != None else 'No'}\n"
+        + f"Playback speed? {parsed.playback_speed}\n"
+        + f"Playback volume? {parsed.volume}\n"
         + f"Queue size? {pass_queue.qsize()}\n"
         + f"Stop signal issued? {stop_event.is_set()}\n"
         + f"Uptime? {uptime()}"
     )
+
+
+@app.route("/speed/<float:playback_speed>")
+def speed(playback_speed):
+    global parsed
+    parsed.playback_speed = playback_speed
+    return f"Playback speed is now {parsed.playback_speed}"
+
+
+@app.route("/volume/<float:playback_volume>")
+def volume(playback_volume):
+    global parsed
+    parsed.volume = playback_volume
+    return f"Playback volume is now {parsed.volume}"
 
 
 def notify(msg):
