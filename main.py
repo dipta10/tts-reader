@@ -1,13 +1,13 @@
+from subprocess import Popen
+from typing import List
 import argparse
 import os
 import signal
 import subprocess
+import sys
 import threading
 import time
 import uuid
-import sys
-from subprocess import Popen
-from typing import List
 
 from flask import Flask
 from plyer import notification
@@ -18,6 +18,9 @@ app = Flask(__name__)
 parser = argparse.ArgumentParser(
     prog="tts-reader",
 )
+parser.add_argument(
+    "-i", "--ip", type=str, default="127.0.0.1", help="ip address to host on"
+)
 parser.add_argument("-p", "--port", type=int, default=5000, help="port number")
 parser.add_argument("--playback_speed", type=float, default=1.2, help="playback speed")
 parser.add_argument("--volume_level", type=float, default=1.0, help="volume level")
@@ -26,6 +29,12 @@ parser.add_argument(
     default=False,
     action=argparse.BooleanOptionalAction,
     help="assume wayland instead",
+)
+parser.add_argument(
+    "--debug",
+    default=False,
+    action=argparse.BooleanOptionalAction,
+    help="debug (for developmental purposes)",
 )
 parser.add_argument("--model", type=str, default=None, help="path to the model")
 parser.add_argument(
@@ -109,18 +118,21 @@ def sanitizeText(text: str):
 
 def add_text():
     global tokens
+
     try:
         is_wayland = bool(parser.parse_args().wayland)
         if is_wayland:
             out_binary = subprocess.check_output(["wl-paste", "-p"])
         else:
             out_binary = subprocess.check_output(["xclip", "-o", "-selection primary"])
-        text: str = out_binary.decode("utf-8")
+        text = out_binary.decode("utf-8")
+
     except Exception as e:
         print(e)
-        notify("Unable to get selected text")
+        notify("Failed to get selected text")
         return
-    tokens = text.split(". ")
+
+    tokens = text.split(".")
     try:
         while tokens:
             text = tokens[0].strip() + "."
@@ -177,8 +189,10 @@ def notify(msg: str):
 
 
 if __name__ == "__main__":
-    if parser.parse_args().model == None or parser.parse_args().model_config == None:
+    pa = parser.parse_args()
+
+    if pa.model == None or pa.model_config == None:
         print("Please provide both the --model and --model_config arguments")
         sys.exit(1)
 
-    app.run(host="0.0.0.0", port=parser.parse_args().port)
+    app.run(host=pa.ip, port=pa.port, debug=pa.debug)
