@@ -1,6 +1,7 @@
 from subprocess import Popen
 from queue import Queue
 import argparse
+import datetime
 import os
 import signal
 import subprocess
@@ -64,6 +65,7 @@ pass_queue = Queue()
 gen_process = None
 play_process = None
 stop_playing = False
+begin_time = None
 
 app = Flask("tts-reader")
 
@@ -224,6 +226,22 @@ def stop():
     return f"Queue cleared of pending {num_queue} items. Killed the generate and play processes if running"
 
 
+@app.route("/status")
+def status():
+    global play_process
+    global gen_process
+    global stop_playing
+    global pass_queue
+
+    return (
+        f"Generator process running? {'Yes at ' + str(gen_process.pid) if gen_process != None else 'No'}\n"
+        + f"Playback process running? {'Yes at ' + str(play_process.pid) if play_process != None else 'No'}\n"
+        + f"Queue size? {pass_queue.qsize()}\n"
+        + f"Stop signal issued? {stop_playing}\n"
+        + f"Uptime? {uptime()}"
+    )
+
+
 def notify(msg):
     notification.notify(
         title="tts-reader",
@@ -231,6 +249,13 @@ def notify(msg):
         app_icon=None,
         timeout=2,
     )
+
+
+def uptime():
+    global begin_time
+
+    diff = time.time() - begin_time
+    return str(datetime.timedelta(seconds=int(diff)))
 
 
 def fatal_exit():
@@ -243,5 +268,7 @@ if __name__ == "__main__":
     if parsed.model == None or parsed.model_config == None:
         print("Please provide both the --model and --model_config arguments")
         sys.exit(1)
+
+    begin_time = time.time()
 
     app.run(host=parsed.ip, port=parsed.port, debug=parsed.debug)

@@ -23,6 +23,10 @@ Select and read aloud text from anywhere 🎧
     ```bash
     curl --url http://localhost:5000/stop
     ```
+6. Check status of the program using:
+    ```bash
+    curl --url http://localhost:5000/status
+    ```
     
 ### Let's set a keybind
 You can set keybindings in your DE or window manager of choice for practial usage. For example, if you're running i3wm, add the following to your i3 config, `~/.config/i3/config`.
