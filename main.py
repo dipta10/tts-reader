@@ -1,5 +1,5 @@
 from subprocess import Popen
-from collections import deque
+from queue import Queue
 import argparse
 import os
 import signal
@@ -25,24 +25,30 @@ parser.add_argument(
 )
 parser.add_argument("--volume", type=float, default=1.0, help="volume between 0 and 1")
 parser.add_argument(
+    "--one_sentence",
+    default=False,
+    action=argparse.BooleanOptionalAction,
+    help="read one sentence at a time instead of the default full selection",
+)
+parser.add_argument(
     "--wayland",
     default=False,
     action=argparse.BooleanOptionalAction,
     help="assume wayland instead",
 )
-parser.add_argument(
-    "--debug",
-    default=False,
-    action=argparse.BooleanOptionalAction,
-    help="debug (for developmental purposes)",
-)
 parser.add_argument("--model", type=str, default=None, help="path to the model")
 parser.add_argument(
     "--model_config", type=str, default=None, help="path to the model config"
 )
+parser.add_argument(
+    "--debug",
+    default=False,
+    action=argparse.BooleanOptionalAction,
+    help="enable flask debug mode (for developmental purposes)",
+)
 
 parsed = None
-text_queue = deque()
+text_queue = Queue()
 current_process = None
 stop_playing = False
 
@@ -59,12 +65,7 @@ def thread_generate_play():
         sys.exit(1)
 
     while True:
-        if len(text_queue) == 0:
-            sleep_time = 1
-            time.sleep(sleep_time)
-            continue
-
-        text = text_queue.popleft()
+        text = text_queue.get()
         try:
             out = None
             current_process = None
@@ -148,17 +149,20 @@ def read():
 
     tokens = text.split(". ")
     try:
-        while tokens:
-            text = tokens[0].strip() + "."
-            tokens = tokens[1:]
-            text = sanitizeText(text)
-            text_queue.append(text)
+        if parsed.one_sentence:
+            while tokens:
+                text = tokens[0].strip() + "."
+                tokens = tokens[1:]
+                text = sanitizeText(text)
+                text_queue.put(text)
+        else:
+            text_queue.put(text)
 
     except Exception as e:
         print(e)
         notify("Failed while organizing text for TTS")
 
-    return ''
+    return ""
 
 
 def sanitizeText(text: str):
@@ -171,9 +175,11 @@ def sanitizeText(text: str):
 @app.route("/stop")
 def stop():
     global stop_playing
+    global text_queue
 
     stop_playing = True
-    text_queue.clear()
+    while text_queue.qsize() > 0:
+        text_queue.get()
 
     try:
         if current_process is not None:
