@@ -32,6 +32,38 @@ bindsym $alt+3 exec "curl --url http://localhost:5000/read"
 bindsym $alt+shift+3 exec "curl --url http://localhost:5000/stop"
 ```
 
+### Available options
+```shell
+usage: tts-reader [-h] [-i IP] [-p PORT] [-s PLAYBACK_SPEED] [-v VOLUME]
+                  [-r PLAY_SAMPLE_RATE]
+                  [-f | --full_selection | --no-full_selection]
+                  [-w | --wayland | --no-wayland] [-m MODEL] [-c MODEL_CONFIG]
+                  [-d | --debug | --no-debug]
+
+options:
+  -h, --help            show this help message and exit
+  -i IP, --ip IP        IP address
+  -p PORT, --port PORT  Port
+  -s PLAYBACK_SPEED, --playback_speed PLAYBACK_SPEED
+                        Playback speed
+  -v VOLUME, --volume VOLUME
+                        Volume [0-1]
+  -r PLAY_SAMPLE_RATE, --play_sample_rate PLAY_SAMPLE_RATE
+                        Playback sample rate. More info at https://github.com/
+                        rhasspy/piper/blob/master/TRAINING.md
+  -f, --full_selection, --no-full_selection
+                        Process the whole selectation at a time instead of
+                        chunking and reading by individual sentences
+  -w, --wayland, --no-wayland
+                        Assume running under Wayland
+  -m MODEL, --model MODEL
+                        Path to the model
+  -c MODEL_CONFIG, --model_config MODEL_CONFIG
+                        Path to the model configuration
+  -d, --debug, --no-debug
+                        Enable flask debug mode (developmental purposes)
+```
+
 ### Disclaimer
 This is my pet project. I switched from Windows to Ubuntu, mainly for i3wm and because my potato laptop works way faster here.
 I was looking for an alternative for TTS reader where with a keybind I can make the app read the selected text aloud.
