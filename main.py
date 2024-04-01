@@ -25,10 +25,10 @@ parser.add_argument(
 )
 parser.add_argument("--volume", type=float, default=1.0, help="volume between 0 and 1")
 parser.add_argument(
-    "--one_sentence",
+    "--full_selection",
     default=False,
     action=argparse.BooleanOptionalAction,
-    help="read one sentence at a time instead of the default full selection",
+    help="generate and read the full selection at a time instead of the default one sentence",
 )
 parser.add_argument(
     "--wayland",
@@ -48,15 +48,16 @@ parser.add_argument(
 )
 
 parsed = None
-text_queue = Queue()
-current_process = None
+pass_queue = Queue()
+gen_process = None
+play_process = None
 stop_playing = False
 
 app = Flask("tts-reader")
 
 
-def thread_generate_play():
-    global current_process
+def thread_play():
+    global play_process
     global parsed
 
     ffplay_path = shutil.which("ffplay")
@@ -65,33 +66,10 @@ def thread_generate_play():
         sys.exit(1)
 
     while True:
-        text = text_queue.get()
+        audio = pass_queue.get()
         try:
-            out = None
-            current_process = None
-
             if not stop_playing:
-                process = Popen(
-                    [
-                        sys.executable,
-                        "-m",
-                        "piper",
-                        "--output-raw",
-                        "--model",
-                        parsed.model,
-                        "--config",
-                        parsed.model_config,
-                    ],
-                    stdin=subprocess.PIPE,
-                    stdout=subprocess.PIPE,
-                    start_new_session=True,
-                )
-                current_process = process
-                out, _ = process.communicate(input=text.encode())
-                current_process = None
-
-            if not stop_playing:
-                ffplay_process = Popen(
+                play_process = Popen(
                     [
                         ffplay_path,
                         "-hide_banner",
@@ -113,9 +91,8 @@ def thread_generate_play():
                     stdin=subprocess.PIPE,
                     start_new_session=True,
                 )
-                current_process = ffplay_process
-                ffplay_process.communicate(input=out)
-                current_process = None
+                play_process.communicate(input=audio)
+                play_process = None
 
         except Exception as e:
             print(e)
@@ -125,14 +102,16 @@ def thread_generate_play():
             pass
 
 
-read_thread = threading.Thread(target=thread_generate_play, daemon=True)
-read_thread.start()
+play_thread = threading.Thread(target=thread_play, daemon=True)
+play_thread.start()
 
 
 @app.route("/read")
 def read():
     global stop_playing
     stop_playing = False
+    
+    num_chars = 0
 
     try:
         out = subprocess.check_output(
@@ -141,28 +120,58 @@ def read():
             else ["xclip", "-o", "-selection primary"]
         )
         text = out.decode("utf-8")
+        num_chars = len(text)
 
     except Exception as e:
         print(e)
         notify("Failed to get selected text")
         return
 
-    tokens = text.split(". ")
     try:
-        if parsed.one_sentence:
+        if not parsed.full_selection:
+            tokens = text.split(". ")
             while tokens:
                 text = tokens[0].strip() + "."
                 tokens = tokens[1:]
                 text = sanitizeText(text)
-                text_queue.put(text)
+
+                out = generate_audio(text)
+                if out != None:
+                    pass_queue.put(out)
         else:
-            text_queue.put(text)
+            out = generate_audio(text)
+            if out != None:
+                pass_queue.put(out)
 
     except Exception as e:
         print(e)
         notify("Failed while organizing text for TTS")
 
-    return ""
+    return f"Generated and queued {num_chars} characeters for playback"
+
+
+def generate_audio(text):
+    global gen_process
+
+    gen_process = Popen(
+        [
+            sys.executable,
+            "-m",
+            "piper",
+            "--output-raw",
+            "--model",
+            parsed.model,
+            "--config",
+            parsed.model_config,
+        ],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        start_new_session=True,
+    )
+    out, _ = gen_process.communicate(input=text.encode())
+    gen_process = None
+
+    return out
 
 
 def sanitizeText(text: str):
@@ -175,22 +184,30 @@ def sanitizeText(text: str):
 @app.route("/stop")
 def stop():
     global stop_playing
-    global text_queue
+    global pass_queue
+    global play_process
+    global gen_process
+
+    num_queue = pass_queue.qsize()
 
     stop_playing = True
-    while text_queue.qsize() > 0:
-        text_queue.get()
+    while pass_queue.qsize() > 0:
+        pass_queue.get()
 
     try:
-        if current_process is not None:
-            print(f"Killing current_process {current_process.pid}")
-            os.killpg(current_process.pid, signal.SIGTERM)
+        if gen_process is not None:
+            print(f"Killing gen_process ")
+            os.killpg(gen_process.pid, signal.SIGTERM)
+
+        if play_process is not None:
+            print(f"Killing play_process {play_process.pid}")
+            os.killpg(play_process.pid, signal.SIGTERM)
 
     except Exception as e:
         print(e)
         notify("Failed to stop TTS")
 
-    return "Queue cleared"
+    return f"Queue cleared of pending {num_queue} items. Killed the generate and play processes if running"
 
 
 def notify(msg: str):
