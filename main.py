@@ -1,5 +1,5 @@
 from subprocess import Popen
-from typing import List
+from collections import deque
 import argparse
 import os
 import signal
@@ -8,13 +8,10 @@ import sys
 import shutil
 import threading
 import time
-import uuid
 
 from flask import Flask
 from plyer import notification
 from unidecode import unidecode
-
-app = Flask(__name__)
 
 parser = argparse.ArgumentParser(
     prog="tts-reader",
@@ -23,8 +20,10 @@ parser.add_argument(
     "-i", "--ip", type=str, default="127.0.0.1", help="ip address to host on"
 )
 parser.add_argument("-p", "--port", type=int, default=5000, help="port number")
-parser.add_argument("--playback_speed", type=float, default=1.2, help="playback speed")
-parser.add_argument("--volume_level", type=float, default=1.0, help="volume level")
+parser.add_argument(
+    "-s", "--playback_speed", type=float, default=1.2, help="playback speed"
+)
+parser.add_argument("--volume", type=float, default=1.0, help="volume between 0 and 1")
 parser.add_argument(
     "--wayland",
     default=False,
@@ -42,34 +41,30 @@ parser.add_argument(
     "--model_config", type=str, default=None, help="path to the model config"
 )
 
-# it is recommended to use dqueue I think
-# https://stackoverflow.com/questions/71290441/how-to-run-a-thread-endlessly-in-python
-queue: List = []
+parsed = None
+text_queue = deque()
 current_process = None
-audio_file_path = "/tmp"
-tokens = []
 stop_playing = False
 
+app = Flask("tts-reader")
 
-def _process_read_text():
+
+def thread_generate_play():
     global current_process
+    global parsed
 
     ffplay_path = shutil.which("ffplay")
     if ffplay_path == None:
         print("ffplay not found in PATH")
         sys.exit(1)
 
-    pa = parser.parse_args()
-    playback_speed = str(pa.playback_speed)
-    volume_level = str(pa.volume_level)
-
     while True:
-        if len(queue) == 0:
-            sleep_time = 0.5
+        if len(text_queue) == 0:
+            sleep_time = 1
             time.sleep(sleep_time)
             continue
 
-        text = queue.pop(0)
+        text = text_queue.popleft()
         try:
             out = None
             current_process = None
@@ -82,9 +77,9 @@ def _process_read_text():
                         "piper",
                         "--output-raw",
                         "--model",
-                        pa.model,
+                        parsed.model,
                         "--config",
-                        pa.model_config,
+                        parsed.model_config,
                     ],
                     stdin=subprocess.PIPE,
                     stdout=subprocess.PIPE,
@@ -105,7 +100,7 @@ def _process_read_text():
                         "-autoexit",
                         "-nodisp",
                         "-af",
-                        f"atempo={pa.playback_speed},volume={pa.volume_level}",
+                        f"atempo={parsed.playback_speed},volume={parsed.volume}",
                         "-f",
                         "s16le",
                         "-ar",
@@ -122,54 +117,29 @@ def _process_read_text():
                 current_process = None
 
         except Exception as e:
-            print("error", e)
-            notify("TTS-Reader: error playing text :(")
+            print(e)
+            notify("Failed to generate/play")
+
         finally:
             pass
-            # os.remove(os.path.join(audio_file_path, file_name))
 
 
-readThread = threading.Thread(target=_process_read_text, daemon=True)
-readThread.start()
+read_thread = threading.Thread(target=thread_generate_play, daemon=True)
+read_thread.start()
 
 
 @app.route("/read")
 def read():
     global stop_playing
     stop_playing = False
-    add_text()
-    return ""
-
-
-def sanitizeText(text: str):
-    """
-    This function sanitizes the input text by removing non-ASCII characters and hyphenation artifacts. Example:
-    - 𝗟𝗮𝘁𝗲𝗻𝗰𝘆 -> Latency
-    - in pdf files " better perfor‐\nmance"
-
-    Parameters:
-    text (str): The input string to be sanitized.
-
-    Returns:
-    str: The sanitized text.
-    """
-    text = unidecode(text)
-    text = text.replace("‐\n", "")
-    text = text.replace("‐ ", "")
-    return text
-
-
-def add_text():
-    global tokens
-    pa = parser.parse_args()
 
     try:
-        is_wayland = bool(pa.wayland)
-        if is_wayland:
-            out_binary = subprocess.check_output(["wl-paste", "-p"])
-        else:
-            out_binary = subprocess.check_output(["xclip", "-o", "-selection primary"])
-        text = out_binary.decode("utf-8")
+        out = subprocess.check_output(
+            ["wl-paste", "-p"]
+            if parsed.wayland
+            else ["xclip", "-o", "-selection primary"]
+        )
+        text = out.decode("utf-8")
 
     except Exception as e:
         print(e)
@@ -177,40 +147,44 @@ def add_text():
         return
 
     tokens = text.split(". ")
-
     try:
         while tokens:
             text = tokens[0].strip() + "."
             tokens = tokens[1:]
             text = sanitizeText(text)
-            queue.append(text)
+            text_queue.append(text)
 
     except Exception as e:
         print(e)
-        notify("TTS-Reader: something went wrong when creating audio output :(")
+        notify("Failed while organizing text for TTS")
+
+    return ''
 
 
-def read_text():
-    p = Popen(["./script.sh", '"hello"'])
-    p.wait()
+def sanitizeText(text: str):
+    text = unidecode(text)
+    text = text.replace("‐\n", "")
+    text = text.replace("‐ ", "")
+    return text
 
 
 @app.route("/stop")
 def stop():
-    global tokens
     global stop_playing
+
     stop_playing = True
-    queue.clear()
+    text_queue.clear()
+
     try:
         if current_process is not None:
-            print(f"current_process pid: {current_process.pid}")
+            print(f"Killing current_process {current_process.pid}")
             os.killpg(current_process.pid, signal.SIGTERM)
-            tokens = []
-            print(f"current_process pid: {current_process} KILLED")
+
     except Exception as e:
         print(e)
-        notify("error stopping tts :(")
-    return "queue cleared.."
+        notify("Failed to stop TTS")
+
+    return "Queue cleared"
 
 
 def notify(msg: str):
@@ -223,10 +197,10 @@ def notify(msg: str):
 
 
 if __name__ == "__main__":
-    pa = parser.parse_args()
+    parsed = parser.parse_args()
 
-    if pa.model == None or pa.model_config == None:
+    if parsed.model == None or parsed.model_config == None:
         print("Please provide both the --model and --model_config arguments")
         sys.exit(1)
 
-    app.run(host=pa.ip, port=pa.port, debug=pa.debug)
+    app.run(host=parsed.ip, port=parsed.port, debug=parsed.debug)
