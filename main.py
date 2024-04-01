@@ -62,9 +62,9 @@ parser.add_argument(
 
 parsed = None
 pass_queue = Queue()
+stop_event = threading.Event()
 gen_process = None
 play_process = None
-stop_playing = False
 begin_time = None
 
 app = Flask("tts-reader")
@@ -73,6 +73,7 @@ app = Flask("tts-reader")
 def thread_play():
     global play_process
     global parsed
+    global stop_event
 
     ffplay_path = shutil.which("ffplay")
     if ffplay_path == None:
@@ -83,7 +84,7 @@ def thread_play():
     while True:
         audio = pass_queue.get()
         try:
-            if not stop_playing:
+            if not stop_event.is_set():
                 play_process = Popen(
                     [
                         ffplay_path,
@@ -123,8 +124,8 @@ play_thread.start()
 
 @app.route("/read")
 def read():
-    global stop_playing
-    stop_playing = False
+    global stop_event
+    stop_event.clear()
 
     num_chars = 0
 
@@ -201,21 +202,22 @@ def sanitize_text(text: str):
 def stop():
     global gen_process
     global play_process
-    global stop_playing
+    global stop_event
     global pass_queue
 
     num_queue = pass_queue.qsize()
 
-    stop_playing = True
+    stop_event.set()
+
     while pass_queue.qsize() > 0:
         pass_queue.get()
 
     try:
-        if gen_process is not None:
+        if gen_process != None:
             print(f"Killing gen_process {gen_process.pid}")
             os.killpg(gen_process.pid, signal.SIGTERM)
 
-        if play_process is not None:
+        if play_process != None:
             print(f"Killing play_process {play_process.pid}")
             os.killpg(play_process.pid, signal.SIGTERM)
 
@@ -230,14 +232,14 @@ def stop():
 def status():
     global play_process
     global gen_process
-    global stop_playing
+    global stop_event
     global pass_queue
 
     return (
         f"Generator process running? {'Yes at ' + str(gen_process.pid) if gen_process != None else 'No'}\n"
         + f"Playback process running? {'Yes at ' + str(play_process.pid) if play_process != None else 'No'}\n"
         + f"Queue size? {pass_queue.qsize()}\n"
-        + f"Stop signal issued? {stop_playing}\n"
+        + f"Stop signal issued? {stop_event.is_set()}\n"
         + f"Uptime? {uptime()}"
     )
 
