@@ -3,7 +3,6 @@
 __pycache__
 .venv
 venv
-learn
 /.vscode
 models/*
 !models/README.md

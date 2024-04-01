@@ -16,47 +16,47 @@ from unidecode import unidecode
 parser = argparse.ArgumentParser(
     prog="tts-reader",
 )
+parser.add_argument("-i", "--ip", type=str, default="127.0.0.1", help="IP address")
+parser.add_argument("-p", "--port", type=int, default=5000, help="Port")
 parser.add_argument(
-    "-i", "--ip", type=str, default="127.0.0.1", help="ip address to host on"
+    "-s", "--playback_speed", type=float, default=1.2, help="Playback speed"
 )
-parser.add_argument("-p", "--port", type=int, default=5000, help="port number")
-parser.add_argument(
-    "-s", "--playback_speed", type=float, default=1.2, help="playback speed"
-)
-parser.add_argument(
-    "-v", "--volume", type=float, default=1.0, help="volume between 0 and 1"
-)
+parser.add_argument("-v", "--volume", type=float, default=1.0, help="Volume [0-1]")
 parser.add_argument(
     "-r",
     "--play_sample_rate",
     type=int,
     default=22050,
-    help="playback sample rate. check the sample rate your model outputs at, https://github.com/rhasspy/piper/blob/master/TRAINING.md",
+    help="Playback sample rate. More info at https://github.com/rhasspy/piper/blob/master/TRAINING.md",
 )
 parser.add_argument(
     "-f",
     "--full_selection",
     default=False,
     action=argparse.BooleanOptionalAction,
-    help="generate and read the full selection at a time instead of the default one sentence",
+    help="Process the whole selectation at a time instead of chunking and reading by individual sentences",
 )
 parser.add_argument(
     "-w",
     "--wayland",
     default=False,
     action=argparse.BooleanOptionalAction,
-    help="assume wayland instead",
+    help="Assume running under Wayland",
 )
-parser.add_argument("-m", "--model", type=str, default=None, help="path to the model")
+parser.add_argument("-m", "--model", type=str, default=None, help="Path to the model")
 parser.add_argument(
-    "-c", "--model_config", type=str, default=None, help="path to the model config"
+    "-c",
+    "--model_config",
+    type=str,
+    default=None,
+    help="Path to the model configuration",
 )
 parser.add_argument(
     "-d",
     "--debug",
     default=False,
     action=argparse.BooleanOptionalAction,
-    help="enable flask debug mode (for developmental purposes)",
+    help="Enable flask debug mode (developmental purposes)",
 )
 
 parsed = None

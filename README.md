@@ -1,35 +1,35 @@
 # TTS Reader
-Select text from anywhere and read aloud 🎧
+Select and read aloud text from anywhere 🎧
 
 ### Requirements
-- curl
+- curl (or anything else to issue http requests)
 - ffmpeg
 - wl-clipboard (if you're on Wayland)
 - xclip (if you're on X11)
 
 ### Steps to run
-1. Download models and their respective configs in the `models` directory. See [here](https://github.com/rhasspy/piper/blob/master/VOICES.md)
+1. Download voice models and their respective configurations in the `models` directory. See [here](https://github.com/rhasspy/piper/blob/master/VOICES.md)
 2. Install requirements and run the application:
     ```bash
     pip install -r requirements.txt 
     python main.py --port 5000 --playback_speed=1.0 --volume_level=.8 --model models/yourmodel.onnx --model_config models/yourmodel.onnx.json --wayland
     ```
-3. Select some text from your browser.
-4. Run the following command to have the selected text read aloud:
+3. Select any text from your browser, terminal, etc
+4. Run the following command to read aloud the selected text:
     ```bash
-    curl --request GET --url http://localhost:5000/read
+    curl --url http://localhost:5000/read
     ```
-5. If you want to stop reading aloud in the middle, use:
+5. If you want to interrupt reading, use:
     ```bash
-    curl --request GET --url http://localhost:5000/stop
+    curl --url http://localhost:5000/stop
     ```
     
 ### Let's set a keybind
-Now we can set a keybind to run the commands. For example, if we're running i3wm we can add the following in our i3 config `~/.config/i3/config`.
+You can set keybindings in your DE or window manager of choice for practial usage. For example, if you're running i3wm, add the following to your i3 config, `~/.config/i3/config`.
 ```shell
 set $alt Mod1
-bindsym $alt+3 exec "curl --request GET --url http://localhost:5000/read"
-bindsym $alt+shift+3 exec "curl --request GET  --url http://localhost:5000/stop"
+bindsym $alt+3 exec "curl --url http://localhost:5000/read"
+bindsym $alt+shift+3 exec "curl --url http://localhost:5000/stop"
 ```
 
 ### Disclaimer
