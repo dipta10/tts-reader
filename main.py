@@ -5,6 +5,7 @@ import os
 import signal
 import subprocess
 import sys
+import shutil
 import threading
 import time
 import uuid
@@ -48,6 +49,7 @@ script_process = None
 play_process = None
 audio_file_path = "/tmp"
 tokens = []
+stop_all = False
 
 """
 Todo:
@@ -118,9 +120,10 @@ def sanitizeText(text: str):
 
 def add_text():
     global tokens
+    pa = parser.parse_args()
 
     try:
-        is_wayland = bool(parser.parse_args().wayland)
+        is_wayland = bool(pa.wayland)
         if is_wayland:
             out_binary = subprocess.check_output(["wl-paste", "-p"])
         else:
@@ -132,24 +135,66 @@ def add_text():
         notify("Failed to get selected text")
         return
 
-    tokens = text.split(".")
+    tokens = text.split(". ")
+    ffplay_path = shutil.which("ffplay")
+    if ffplay_path == None:
+        print("ffplay not found in PATH")
+        sys.exit(1)
+
     try:
         while tokens:
+            global stop_all
+            if stop_all:
+                print('Stopping...')
+                stop_all = False
+                break
+
             text = tokens[0].strip() + "."
             tokens = tokens[1:]
             text = sanitizeText(text)
             file_name = f"{uuid.uuid4()}.wav"
+
             process = Popen(
                 [
-                    "./script.sh",
-                    f"{file_name}",
-                    f'"{text}"',
+                    sys.executable,
+                    "-m",
+                    "piper",
+                    "--output-raw",
+                    "--model",
                     parser.parse_args().model,
+                    "--config",
                     parser.parse_args().model_config,
-                ]
+                ],
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
             )
-            process.wait()
-            queue.append(file_name)
+            out, _ = process.communicate(input=text.encode())
+
+            process_play = Popen(
+                [
+                    ffplay_path,
+                    "-hide_banner",
+                    "-loglevel",
+                    "panic",
+                    "-nostats",
+                    "-autoexit",
+                    "-nodisp",
+                    "-af",
+                    f"atempo={pa.playback_speed},volume={pa.volume_level}",
+                    "-f",
+                    "s16le",
+                    "-ar",
+                    "22050",
+                    "-ac",
+                    "1",
+                    "-",
+                ],
+                stdin=subprocess.PIPE,
+            )
+            process_play.communicate(input=out)
+
+            # queue.append(file_name)
+
     except Exception as e:
         print(e)
         notify("TTS-Reader: something went wrong when creating audio output :(")
@@ -162,6 +207,9 @@ def read_text():
 
 @app.route("/stop")
 def stop():
+    global stop_all
+    stop_all = True
+
     global tokens
     queue.clear()
     try:
