@@ -122,13 +122,13 @@ def thread_play():
                     start_new_session=True,
                 )
                 play_process.communicate(input=audio)
-                play_process = None
 
         except Exception as e:
             print(e)
             notify("Failed to play")
 
         finally:
+            play_process = None
             pass_queue.task_done()
             with pass_queue_size_lock:
                 pass_queue_size -= len(audio)
@@ -207,25 +207,33 @@ def generate_audio(text):
     global gen_process
     global parsed
 
-    gen_process = Popen(
-        [
-            sys.executable,
-            "-m",
-            "piper",
-            "--output-raw",
-            "--sentence-silence",
-            f"{parsed.sentence_silence}",
-            "--model",
-            parsed.model,
-            "--config",
-            parsed.model_config,
-        ],
-        stdin=subprocess.PIPE,
-        stdout=subprocess.PIPE,
-        start_new_session=True,
-    )
-    out, _ = gen_process.communicate(input=text.encode())
-    gen_process = None
+    try:
+        gen_process = Popen(
+            [
+                sys.executable,
+                "-m",
+                "piper",
+                "--output-raw",
+                "--sentence-silence",
+                f"{parsed.sentence_silence}",
+                "--model",
+                parsed.model,
+                "--config",
+                parsed.model_config,
+            ],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            start_new_session=True,
+        )
+        out, _ = gen_process.communicate(input=text.encode())
+
+    except Exception as e:
+        print(e)
+        notify("Failed while generating audio")
+        fatal_exit()
+
+    finally:
+        gen_process = None
 
     return out
 
