@@ -78,7 +78,6 @@ begin_time = None
 paused = False
 notifier = DesktopNotifier()
 ffplay_path = None
-piper_path = None
 
 app = Flask("tts-reader")
 
@@ -189,6 +188,7 @@ def read():
                         with pass_queue_size_lock:
                             pass_queue_size += len(out)
         else:
+            text = sanitize_text(text)
             out = generate_audio(text)
             if out is not None:
                 if sendaudio is not None:
@@ -214,7 +214,9 @@ def generate_audio(text):
     try:
         gen_process = Popen(
             [
-                piper_path,
+                sys.executable,
+                "-m",
+                "piper",
                 "--output_raw",
                 "--sentence_silence",
                 f"{parsed.sentence_silence}",
@@ -241,7 +243,7 @@ def generate_audio(text):
 
 
 def sanitize_text(text: str):
-    return unidecode(text).replace("‐\n", "").replace("‐ ", "")
+    return unidecode(text).replace("‐\n", "").replace("‐ ", "").strip()
 
 
 @app.route("/stop")
@@ -368,9 +370,9 @@ if __name__ == "__main__":
     begin_time = time.time()
     parsed = parser.parse_args()
 
-    ffplay_path, piper_path = shutil.which("ffplay"), shutil.which("piper-tts")
-    if ffplay_path is None or piper_path is None:
-        s = "ffplay or piper-tts is not in $PATH"
+    ffplay_path = shutil.which("ffplay")
+    if ffplay_path is None:
+        s = "ffplay is not in $PATH"
         print(s)
         notify(s)
         fatal_exit()
