@@ -77,6 +77,8 @@ stop_event = threading.Event()
 begin_time = None
 paused = False
 notifier = DesktopNotifier()
+ffplay_path = None
+piper_path = None
 
 app = Flask("tts-reader")
 
@@ -87,13 +89,6 @@ def thread_play():
     global pass_queue
     global pass_queue_size
     global pass_queue_size_lock
-
-    ffplay_path = shutil.which("ffplay")
-    if ffplay_path is None:
-        s = "ffplay not found in PATH"
-        print(s)
-        notify(s)
-        fatal_exit()
 
     while True:
         audio = pass_queue.get()
@@ -219,11 +214,9 @@ def generate_audio(text):
     try:
         gen_process = Popen(
             [
-                sys.executable,
-                "-m",
-                "piper",
-                "--output-raw",
-                "--sentence-silence",
+                piper_path,
+                "--output_raw",
+                "--sentence_silence",
                 f"{parsed.sentence_silence}",
                 "--model",
                 parsed.model,
@@ -378,8 +371,15 @@ if __name__ == "__main__":
     begin_time = time.time()
     parsed = parser.parse_args()
 
+    ffplay_path, piper_path = shutil.which("ffplay"), shutil.which("piper-tts")
+    if ffplay_path is None or piper_path is None:
+        s = "ffplay or piper-tts is not in $PATH"
+        print(s)
+        notify(s)
+        fatal_exit()
+
     if parsed.model is None or parsed.model_config is None:
         print("Please provide both the --model and --model_config arguments")
-        sys.exit(1)
+        fatal_exit()
 
     app.run(host=parsed.ip, port=parsed.port, debug=parsed.debug)

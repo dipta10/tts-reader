@@ -2,10 +2,11 @@
 Select and read aloud text from anywhere 🎧
 
 ### Requirements
-- curl (or anything else to issue http requests)
+- curl (to just send HTTP requests)
 - ffmpeg
-- wl-clipboard (if you're on Wayland)
-- xclip (if you're on X11)
+- wl-clipboard (for Wayland)
+- xclip (for X11)
+- piper (https://github.com/rhasspy/piper/releases)
 
 ### Steps to run
 1. Download voice models and their respective configurations in the `models` directory. See [here](https://github.com/rhasspy/piper/blob/master/VOICES.md)
