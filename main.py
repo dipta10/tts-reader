@@ -76,7 +76,7 @@ def thread_play():
     global stop_event
 
     ffplay_path = shutil.which("ffplay")
-    if ffplay_path == None:
+    if ffplay_path is None:
         print("ffplay not found in PATH")
         notify("ffplay not found in PATH")
         fatal_exit()
@@ -156,7 +156,7 @@ def read():
                     pass_queue.put(out)
         else:
             out = generate_audio(text)
-            if out != None:
+            if out is not None:
                 pass_queue.put(out)
 
     except Exception as e:
@@ -213,11 +213,11 @@ def stop():
         pass_queue.get()
 
     try:
-        if gen_process != None:
+        if gen_process is not None:
             print(f"Killing gen_process {gen_process.pid}")
             os.killpg(gen_process.pid, signal.SIGTERM)
 
-        if play_process != None:
+        if play_process is not None:
             print(f"Killing play_process {play_process.pid}")
             os.killpg(play_process.pid, signal.SIGTERM)
 
@@ -237,8 +237,8 @@ def status():
     global parsed
 
     return (
-        f"Generator process running? {'Yes at ' + str(gen_process.pid) if gen_process != None else 'No'}\n"
-        + f"Playback process running? {'Yes at ' + str(play_process.pid) if play_process != None else 'No'}\n"
+        f"Generator process running? {'Yes at ' + str(gen_process.pid) if gen_process is not None else 'No'}\n"
+        + f"Playback process running? {'Yes at ' + str(play_process.pid) if play_process is not None else 'No'}\n"
         + f"Playback speed? {parsed.playback_speed}\n"
         + f"Playback volume? {parsed.volume}\n"
         + f"Queue size? {pass_queue.qsize()}\n"
@@ -284,7 +284,7 @@ def fatal_exit():
 if __name__ == "__main__":
     parsed = parser.parse_args()
 
-    if parsed.model == None or parsed.model_config == None:
+    if parsed.model is None or parsed.model_config is None:
         print("Please provide both the --model and --model_config arguments")
         sys.exit(1)
 
