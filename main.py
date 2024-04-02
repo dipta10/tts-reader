@@ -241,10 +241,7 @@ def generate_audio(text):
 
 
 def sanitize_text(text: str):
-    text = unidecode(text)
-    text = text.replace("‐\n", "")
-    text = text.replace("‐ ", "")
-    return text
+    return unidecode(text).replace("‐\n", "").replace("‐ ", "")
 
 
 @app.route("/stop")
