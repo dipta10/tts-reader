@@ -10,7 +10,7 @@ import shutil
 import threading
 import time
 
-from flask import Flask
+from flask import Flask, request
 from plyer import notification
 from unidecode import unidecode
 
@@ -89,8 +89,9 @@ def thread_play():
 
     ffplay_path = shutil.which("ffplay")
     if ffplay_path is None:
-        print("ffplay not found in PATH")
-        notify("ffplay not found in PATH")
+        s = "ffplay not found in PATH"
+        print(s)
+        notify(s)
         fatal_exit()
 
     while True:
@@ -137,7 +138,7 @@ play_thread = threading.Thread(target=thread_play, daemon=True)
 play_thread.start()
 
 
-@app.route("/read")
+@app.route("/read", methods=["POST", "GET"])
 def read():
     global pass_queue_size
     global pass_queue_size_lock
@@ -147,13 +148,24 @@ def read():
     num_chars = 0
 
     try:
-        out = subprocess.check_output(
-            ["wl-paste", "-p"]
-            if parsed.wayland
-            else ["xclip", "-o", "-selection primary"]
-        )
-        text = out.decode("utf-8")
-        num_chars = len(text)
+        if request.method == "POST":
+            if len(request.data) > 0:
+                text = request.data.decode("utf-8")
+                num_chars = len(text)
+            else:
+                s = "Empty post request or content type header is wrong"
+                print(s)
+                notify(s)
+                return s
+
+        else:
+            out = subprocess.check_output(
+                ["wl-paste", "-p"]
+                if parsed.wayland
+                else ["xclip", "-o", "-selection primary"]
+            )
+            text = out.decode("utf-8")
+            num_chars = len(text)
 
     except Exception as e:
         print(e)
