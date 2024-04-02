@@ -146,7 +146,7 @@ def read():
     try:
         if not parsed.full_selection:
             tokens = text.split(". ")
-            while tokens:
+            while tokens and not stop_event.is_set():            
                 text = tokens[0].strip() + "."
                 tokens = tokens[1:]
                 text = sanitize_text(text)
