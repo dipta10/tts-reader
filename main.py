@@ -173,7 +173,7 @@ def read():
         notify("Failed to get selected text")
         return
 
-    notify(f'Requested {num_chars} characters to be read')
+    notify(f"Requested {num_chars} characters to be read")
 
     try:
         if parsed.one_sentence:
@@ -299,14 +299,18 @@ def status():
 def speed(playback_speed):
     global parsed
     parsed.playback_speed = playback_speed
-    return f"Playback speed is now {parsed.playback_speed}"
+    s = f"Playback speed is now {parsed.playback_speed}"
+    notify(s)
+    return s
 
 
 @app.route("/volume/<float:playback_volume>")
 def volume(playback_volume):
     global parsed
     parsed.volume = playback_volume
-    return f"Playback volume is now {parsed.volume}"
+    s = f"Playback volume is now {parsed.volume}"
+    notify(s)
+    return s
 
 
 @app.route("/play")
