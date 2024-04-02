@@ -270,7 +270,7 @@ def status():
         + f"Playback process running? {'Yes at ' + str(play_process.pid) if play_process is not None else 'No'}\n"
         + f"Playback speed? {parsed.playback_speed}\n"
         + f"Playback volume? {parsed.volume}\n"
-        + f"Queue length? {pass_queue.qsize()}\n"
+        + f"Pending queue length? {pass_queue.qsize()}\n"
         + f"Queue size? {pass_queue_size} B, {pass_queue_size/1024:.2f} KB, {pass_queue_size/(1024**2):.2f} MB\n"
         + f"Stop signal issued? {stop_event.is_set()}\n"
         + f"Uptime? {uptime()}"
