@@ -1,58 +1,63 @@
 # TTS Reader
-Select and read aloud text from anywhere 🎧
+Select and read aloud text from anywhere 🔊
 
 ### Requirements
-- curl (to just send HTTP requests)
 - ffmpeg
-- wl-clipboard (for Wayland)
-- xclip (for X11)
+- wl-clipboard (Wayland only)
+- xclip (X11 only)
 - piper (https://github.com/rhasspy/piper/releases)
+- anything to send requests
 
-### Steps to run
-1. Download voice models and their respective configurations in the `models` directory. See [here](https://github.com/rhasspy/piper/blob/master/VOICES.md)
-2. Install requirements and run the application:
+### Working
+1. Download the models and their respective configurations in a directory. See [here](https://github.com/rhasspy/piper/blob/master/VOICES.md)
+2. Create a virtual environment, install requirements and run:
     ```bash
+    python -m venv venv
+    source venv/bin/activate
     pip install -r requirements.txt 
-    python main.py --port 5000 --playback_speed=1.0 --volume_level=.8 --model models/yourmodel.onnx --model_config models/yourmodel.onnx.json --wayland
+    python main.py --port 5000 --playback_speed=1.0 --volume_level=.8 --model yourmodel.onnx --model_config yourmodel.onnx.json --wayland
     ```
-3. Select any text from your browser, terminal, etc
-4. Run the following command to read aloud the selected text:
+3. Select any text in any application
+4. To read aloud:
     ```bash
-    curl --url http://localhost:5000/read
+    curl http://localhost:5000/read
     ```
-5. You can also tell it to read random text using the POST request:
+5. To read aloud random text, send a POST request:
     ```bash
-    echo Hope you are having a lovely day, sir. | curl -X POST --data-binary @- -H 'Content-Type: application/octet-stream' localhost:5000/read
+    echo Hope you are having a lovely day, sir. | curl -X POST -H 'Content-Type: application/octet-stream' --data-binary @- localhost:5000/read
     ```
-6. If you want to interrupt reading, use:
+6. To just download the generated audio:
     ```bash
-    curl --url http://localhost:5000/stop
+    curl 'http://localhost:5000/read?sendaudio'
     ```
-7. Check status of the program using:
+6. To interrupt the reading:
     ```bash
-    curl --url http://localhost:5000/status
+    curl http://localhost:5000/stop
     ```
-8. Change volume and playback speed at runtime like:
+7. To get basic runtime stats:
     ```bash
-    curl --url http://localhost:5000/speed/1.25
-    curl --url http://localhost:5000/volume/0.7
+    curl http://localhost:5000/status
+    ```
+8. You can dynamically alter the speed and volume using:
+    ```bash
+    curl http://localhost:5000/speed/1.25
+    curl http://localhost:5000/volume/0.7
     ```
 9. Pause, play, toggle and skip with:
     ```bash
-    curl --url http://localhost:5000/pause
-    curl --url http://localhost:5000/play
-    curl --url http://localhost:5000/toggle
-    curl --url http://localhost:5000/skip
+    curl http://localhost:5000/pause
+    curl http://localhost:5000/play
+    curl http://localhost:5000/toggle
+    curl http://localhost:5000/skip
     ```
     
 ### Let's set a keybind
 You can set keybindings in your DE or window manager of choice for practial usage. For example, if you're running i3wm, add the following to your i3 config, `~/.config/i3/config`.
 ```shell
-set $alt Mod1
-bindsym $alt+3 exec "curl --url http://localhost:5000/read"
-bindsym $alt+shift+3 exec "curl --url http://localhost:5000/stop"
-bindsym $alt+4 exec "curl --url http://localhost:5000/toggle"
-bindsym $alt+shift+4 exec "curl --url http://localhost:5000/skip"
+bindsym $mod+t exec "curl http://localhost:5000/read"
+bindsym $mod+shift+t exec "curl http://localhost:5000/stop"
+bindsym Shift+XF86AudioPlay exec "curl http://localhost:5000/toggle"
+bindsym Shift+XF86AudioNext exec "curl http://localhost:5000/skip"
 ```
 
 ### Available options
@@ -89,12 +94,3 @@ options:
   -d, --debug, --no-debug
                         Enable flask debug mode (developmental purposes)
 ```
-
-### Disclaimer
-This is my pet project. I switched from Windows to Ubuntu, mainly for i3wm and because my potato laptop works way faster here.
-I was looking for an alternative for TTS reader where with a keybind I can make the app read the selected text aloud.
-
-Since I didn't find a standalone application that can do it or perform as well as TTS Readers available on Windows, I decided to create one for myself using [Piper](https://github.com/rhasspy/piper) as a side project.
-
-### Todo
-- [x] Use Piper python library and remove lib from repo
