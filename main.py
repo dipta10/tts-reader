@@ -71,17 +71,16 @@ parsed = None
 pass_queue = Queue()
 pass_queue_size = 0
 pass_queue_size_lock = threading.Lock()
-stop_event = threading.Event()
 gen_process = None
 play_process = None
-paused = False
+stop_event = threading.Event()
 begin_time = None
+paused = False
 
 app = Flask("tts-reader")
 
 
 def thread_play():
-    global parsed
     global play_process
     global stop_event
     global pass_queue
@@ -205,7 +204,6 @@ def read():
 
 def generate_audio(text):
     global gen_process
-    global parsed
 
     try:
         gen_process = Popen(
@@ -247,8 +245,6 @@ def sanitize_text(text: str):
 
 @app.route("/stop")
 def stop():
-    global gen_process
-    global play_process
     global stop_event
     global pass_queue
     global pass_queue_size
@@ -283,14 +279,6 @@ def stop():
 
 @app.route("/status")
 def status():
-    global play_process
-    global gen_process
-    global stop_event
-    global pass_queue
-    global pass_queue_size
-    global parsed
-    global paused
-
     return (
         f"Generator process running? {'Yes at ' + str(gen_process.pid) if gen_process is not None else 'No'}\n"
         + f"Playback process running? {'Yes at ' + str(play_process.pid) if play_process is not None else 'No'}\n"
@@ -340,7 +328,6 @@ def pause():
 
 @app.route("/toggle")
 def toggle():
-    global paused
     if paused:
         return play()
     else:
@@ -368,8 +355,6 @@ def notify(msg):
 
 
 def uptime():
-    global begin_time
-
     diff = time.time() - begin_time
     return str(datetime.timedelta(seconds=int(diff)))
 
