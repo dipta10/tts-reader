@@ -175,6 +175,10 @@ def read():
 
     notify(f"Requested {num_chars} characters to be read")
 
+    sendaudio_type = request.args.get("sendaudio", None)
+    if sendaudio_type is not None and sendaudio_type.lower() not in ["wav", "raw"]:
+        return f"Unknown send audio format {sendaudio_type}"
+
     try:
         if parsed.one_sentence:
             tokens = text.split(". ")
@@ -183,17 +187,23 @@ def read():
                 tokens = tokens[1:]
                 text = sanitize_text(text)
 
-                out = generate_audio(text)
+                out = generate_audio(text, sendaudio_type)
                 if out is not None:
+                    if sendaudio_type is None:
+                        pass_queue.put(out)
+                        with pass_queue_size_lock:
+                            pass_queue_size += len(out)
+                    else:
+                        return out
+        else:
+            out = generate_audio(text, sendaudio_type)
+            if out is not None:
+                if sendaudio_type is None:
                     pass_queue.put(out)
                     with pass_queue_size_lock:
                         pass_queue_size += len(out)
-        else:
-            out = generate_audio(text)
-            if out is not None:
-                pass_queue.put(out)
-                with pass_queue_size_lock:
-                    pass_queue_size += len(out)
+                else:
+                    return out
 
     except Exception as e:
         print(e)
@@ -205,8 +215,12 @@ def read():
     return f"Generated and queued {num_chars} characters for playback"
 
 
-def generate_audio(text):
+def generate_audio(text, out_type=None):
     global gen_process
+
+    extra_options = []
+    if out_type is None or out_type.lower() == "raw":
+        extra_options.append("--output-raw")
 
     try:
         gen_process = Popen(
@@ -214,14 +228,14 @@ def generate_audio(text):
                 sys.executable,
                 "-m",
                 "piper",
-                "--output-raw",
                 "--sentence-silence",
                 f"{parsed.sentence_silence}",
                 "--model",
                 parsed.model,
                 "--config",
                 parsed.model_config,
-            ],
+            ]
+            + extra_options,
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             start_new_session=True,
@@ -367,12 +381,11 @@ def fatal_exit():
 
 
 if __name__ == "__main__":
+    begin_time = time.time()
     parsed = parser.parse_args()
 
     if parsed.model is None or parsed.model_config is None:
         print("Please provide both the --model and --model_config arguments")
         sys.exit(1)
-
-    begin_time = time.time()
 
     app.run(host=parsed.ip, port=parsed.port, debug=parsed.debug)
