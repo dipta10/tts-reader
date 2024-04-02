@@ -51,8 +51,8 @@ Select and read aloud text from anywhere 🔊
     curl http://localhost:5000/skip
     ```
     
-### Let's set a keybind
-You can set keybindings in your DE or window manager of choice for practial usage. For example, if you're running i3wm, add the following to your i3 config, `~/.config/i3/config`.
+### Let's set keybinds
+For practical usage, you can set keybindings in your DE or window manager. Say, if you're running sway, add the following to your config `~/.config/sway/config`.
 ```shell
 bindsym $mod+t exec "curl http://localhost:5000/read"
 bindsym $mod+shift+t exec "curl http://localhost:5000/stop"
