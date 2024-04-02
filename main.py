@@ -69,6 +69,8 @@ parser.add_argument(
 
 parsed = None
 pass_queue = Queue()
+pass_queue_size = 0.0
+pass_queue_size_lock = threading.Lock()
 stop_event = threading.Event()
 gen_process = None
 play_process = None
@@ -82,6 +84,8 @@ def thread_play():
     global play_process
     global stop_event
     global pass_queue
+    global pass_queue_size
+    global pass_queue_size_lock
 
     ffplay_path = shutil.which("ffplay")
     if ffplay_path is None:
@@ -124,6 +128,9 @@ def thread_play():
 
         finally:
             pass_queue.task_done()
+            with pass_queue_size_lock:
+                pass_queue_size -= len(audio)
+                pass_queue_size = 0 if pass_queue_size < 0 else pass_queue_size
 
 
 play_thread = threading.Thread(target=thread_play, daemon=True)
@@ -132,6 +139,8 @@ play_thread.start()
 
 @app.route("/read")
 def read():
+    global pass_queue_size
+    global pass_queue_size_lock
     global stop_event
     stop_event.clear()
 
@@ -162,10 +171,14 @@ def read():
                 out = generate_audio(text)
                 if out is not None:
                     pass_queue.put(out)
+                    with pass_queue_size_lock:
+                        pass_queue_size += len(out)
         else:
             out = generate_audio(text)
             if out is not None:
                 pass_queue.put(out)
+                with pass_queue_size_lock:
+                    pass_queue_size += len(out)
 
     except Exception as e:
         print(e)
@@ -215,6 +228,8 @@ def stop():
     global play_process
     global stop_event
     global pass_queue
+    global pass_queue_size
+    global pass_queue_size_lock
 
     num_queue = pass_queue.qsize()
 
@@ -222,6 +237,8 @@ def stop():
 
     while pass_queue.qsize() > 0:
         pass_queue.get()
+    with pass_queue_size_lock:
+        pass_queue_size = 0
 
     try:
         if gen_process is not None:
@@ -245,6 +262,7 @@ def status():
     global gen_process
     global stop_event
     global pass_queue
+    global pass_queue_size
     global parsed
 
     return (
@@ -252,7 +270,8 @@ def status():
         + f"Playback process running? {'Yes at ' + str(play_process.pid) if play_process is not None else 'No'}\n"
         + f"Playback speed? {parsed.playback_speed}\n"
         + f"Playback volume? {parsed.volume}\n"
-        + f"Queue size? {pass_queue.qsize()}\n"
+        + f"Queue length? {pass_queue.qsize()}\n"
+        + f"Queue size? {pass_queue_size} B, {pass_queue_size/1024:.2f} KB, {pass_queue_size/(1024**2):.2f} MB\n"
         + f"Stop signal issued? {stop_event.is_set()}\n"
         + f"Uptime? {uptime()}"
     )
