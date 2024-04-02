@@ -31,6 +31,13 @@ parser.add_argument(
     help="Playback sample rate. More info at https://github.com/rhasspy/piper/blob/master/TRAINING.md",
 )
 parser.add_argument(
+    "-l",
+    "--sentence_silence",
+    type=float,
+    default=0.7,
+    help="Seconds of silence after each sentence. Passed to piper",
+)
+parser.add_argument(
     "-f",
     "--full_selection",
     default=False,
@@ -146,7 +153,7 @@ def read():
     try:
         if not parsed.full_selection:
             tokens = text.split(". ")
-            while tokens and not stop_event.is_set():            
+            while tokens and not stop_event.is_set():
                 text = tokens[0].strip() + "."
                 tokens = tokens[1:]
                 text = sanitize_text(text)
@@ -169,6 +176,7 @@ def read():
 
 def generate_audio(text):
     global gen_process
+    global parsed
 
     gen_process = Popen(
         [
@@ -176,6 +184,8 @@ def generate_audio(text):
             "-m",
             "piper",
             "--output-raw",
+            "--sentence-silence",
+            f"{parsed.sentence_silence}",
             "--model",
             parsed.model,
             "--config",

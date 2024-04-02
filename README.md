@@ -42,9 +42,9 @@ bindsym $alt+shift+3 exec "curl --url http://localhost:5000/stop"
 ```
 
 ### Available options
-```shell
+```
 usage: tts-reader [-h] [-i IP] [-p PORT] [-s PLAYBACK_SPEED] [-v VOLUME]
-                  [-r PLAY_SAMPLE_RATE]
+                  [-r PLAYBACK_SAMPLE_RATE] [-l SENTENCE_SILENCE]
                   [-f | --full_selection | --no-full_selection]
                   [-w | --wayland | --no-wayland] [-m MODEL] [-c MODEL_CONFIG]
                   [-d | --debug | --no-debug]
@@ -57,9 +57,12 @@ options:
                         Playback speed
   -v VOLUME, --volume VOLUME
                         Volume [0-1]
-  -r PLAY_SAMPLE_RATE, --play_sample_rate PLAY_SAMPLE_RATE
+  -r PLAYBACK_SAMPLE_RATE, --playback_sample_rate PLAYBACK_SAMPLE_RATE
                         Playback sample rate. More info at https://github.com/
                         rhasspy/piper/blob/master/TRAINING.md
+  -l SENTENCE_SILENCE, --sentence_silence SENTENCE_SILENCE
+                        Seconds of silence after each sentence. Passed to
+                        piper
   -f, --full_selection, --no-full_selection
                         Process the whole selectation at a time instead of
                         chunking and reading by individual sentences
