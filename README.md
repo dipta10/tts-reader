@@ -45,7 +45,7 @@ bindsym $alt+shift+3 exec "curl --url http://localhost:5000/stop"
 ```
 usage: tts-reader [-h] [-i IP] [-p PORT] [-s PLAYBACK_SPEED] [-v VOLUME]
                   [-r PLAYBACK_SAMPLE_RATE] [-l SENTENCE_SILENCE]
-                  [-f | --full_selection | --no-full_selection]
+                  [-o | --one_sentence | --no-one_sentence]
                   [-w | --wayland | --no-wayland] [-m MODEL] [-c MODEL_CONFIG]
                   [-d | --debug | --no-debug]
 
@@ -63,9 +63,9 @@ options:
   -l SENTENCE_SILENCE, --sentence_silence SENTENCE_SILENCE
                         Seconds of silence after each sentence. Passed to
                         piper
-  -f, --full_selection, --no-full_selection
-                        Process the whole selectation at a time instead of
-                        chunking and reading by individual sentences
+  -o, --one_sentence, --no-one_sentence
+                        Process one sentence at a time, instead of the default
+                        whole selection
   -w, --wayland, --no-wayland
                         Assume running under Wayland
   -m MODEL, --model MODEL

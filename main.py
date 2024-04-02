@@ -38,11 +38,11 @@ parser.add_argument(
     help="Seconds of silence after each sentence. Passed to piper",
 )
 parser.add_argument(
-    "-f",
-    "--full_selection",
+    "-o",
+    "--one_sentence",
     default=False,
     action=argparse.BooleanOptionalAction,
-    help="Process the whole selectation at a time instead of chunking and reading by individual sentences",
+    help="Process one sentence at a time, instead of the default whole selection",
 )
 parser.add_argument(
     "-w",
@@ -151,7 +151,7 @@ def read():
         return
 
     try:
-        if not parsed.full_selection:
+        if parsed.one_sentence:
             tokens = text.split(". ")
             while tokens and not stop_event.is_set():
                 text = tokens[0].strip() + "."
