@@ -74,6 +74,7 @@ pass_queue_size_lock = threading.Lock()
 stop_event = threading.Event()
 gen_process = None
 play_process = None
+paused = False
 begin_time = None
 
 app = Flask("tts-reader")
@@ -244,10 +245,12 @@ def stop():
     global pass_queue
     global pass_queue_size
     global pass_queue_size_lock
+    global paused
 
     num_queue = pass_queue.qsize()
 
     stop_event.set()
+    paused = False
 
     while pass_queue.qsize() > 0:
         pass_queue.get()
@@ -278,12 +281,14 @@ def status():
     global pass_queue
     global pass_queue_size
     global parsed
+    global paused
 
     return (
         f"Generator process running? {'Yes at ' + str(gen_process.pid) if gen_process is not None else 'No'}\n"
         + f"Playback process running? {'Yes at ' + str(play_process.pid) if play_process is not None else 'No'}\n"
         + f"Playback speed? {parsed.playback_speed}\n"
         + f"Playback volume? {parsed.volume}\n"
+        + f"Playback paused? {paused}\n"
         + f"Pending queue length? {pass_queue.qsize()}\n"
         + f"Queue size? {pass_queue_size} B, {pass_queue_size/1024:.2f} KB, {pass_queue_size/(1024**2):.2f} MB\n"
         + f"Stop signal issued? {stop_event.is_set()}\n"
@@ -307,6 +312,8 @@ def volume(playback_volume):
 
 @app.route("/play")
 def play():
+    global paused
+    paused = False
     if play_process is not None:
         os.kill(play_process.pid, signal.SIGCONT)
         return "Playback continued"
@@ -315,9 +322,31 @@ def play():
 
 @app.route("/pause")
 def pause():
+    global paused
     if play_process is not None:
         os.kill(play_process.pid, signal.SIGSTOP)
+        paused = True
         return "Playback paused"
+    return "Nothing playing"
+
+
+@app.route("/toggle")
+def toggle():
+    global paused
+    if paused:
+        return play()
+    else:
+        return pause()
+
+
+@app.route("/skip")
+def skip():
+    global paused
+    paused = False
+    if play_process is not None:
+        os.kill(play_process.pid, signal.SIGCONT)
+        os.killpg(play_process.pid, signal.SIGTERM)
+        return "Skipped current playing"
     return "Nothing playing"
 
 
