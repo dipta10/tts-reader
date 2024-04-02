@@ -1,5 +1,5 @@
 flask==3.0.2
 python-dotenv==1.0.1
-plyer==2.1.0
 Unidecode==1.3.8
 piper-tts==1.2.0
+desktop-notifier==3.5.6

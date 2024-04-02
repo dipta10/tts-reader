@@ -11,7 +11,7 @@ import threading
 import time
 
 from flask import Flask, request
-from plyer import notification
+from desktop_notifier import DesktopNotifier
 from unidecode import unidecode
 
 parser = argparse.ArgumentParser(
@@ -76,6 +76,7 @@ play_process = None
 stop_event = threading.Event()
 begin_time = None
 paused = False
+notifier = DesktopNotifier()
 
 app = Flask("tts-reader")
 
@@ -171,6 +172,8 @@ def read():
         print(e)
         notify("Failed to get selected text")
         return
+
+    notify(f'Requested {num_chars} characters to be read')
 
     try:
         if parsed.one_sentence:
@@ -346,12 +349,7 @@ def skip():
 
 
 def notify(msg):
-    notification.notify(
-        title="tts-reader",
-        message=msg,
-        app_icon=None,
-        timeout=2,
-    )
+    notifier.send_sync(title="TTS Reader", message=msg, timeout=2)
 
 
 def uptime():
