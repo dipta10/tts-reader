@@ -19,6 +19,10 @@ Select and read aloud text from anywhere 🎧
     ```bash
     curl --url http://localhost:5000/read
     ```
+5. You can also tell it to read random text using the POST request:
+    ```bash
+    echo Hope you are having a lovely day, sir. | curl -X POST --data-binary @- -H 'Content-Type: application/octet-stream' localhost:5000/read
+    ```
 5. If you want to interrupt reading, use:
     ```bash
     curl --url http://localhost:5000/stop
