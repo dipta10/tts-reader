@@ -23,15 +23,15 @@ Select and read aloud text from anywhere 🎧
     ```bash
     echo Hope you are having a lovely day, sir. | curl -X POST --data-binary @- -H 'Content-Type: application/octet-stream' localhost:5000/read
     ```
-5. If you want to interrupt reading, use:
+6. If you want to interrupt reading, use:
     ```bash
     curl --url http://localhost:5000/stop
     ```
-6. Check status of the program using:
+7. Check status of the program using:
     ```bash
     curl --url http://localhost:5000/status
     ```
-7. Change volume and playback speed at runtime like:
+8. Change volume and playback speed at runtime like:
     ```bash
     curl --url http://localhost:5000/speed/1.25
     curl --url http://localhost:5000/volume/0.7
