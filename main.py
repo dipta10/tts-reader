@@ -152,7 +152,7 @@ def read():
                 text = sanitize_text(text)
 
                 out = generate_audio(text)
-                if out != None:
+                if out is not None:
                     pass_queue.put(out)
         else:
             out = generate_audio(text)
