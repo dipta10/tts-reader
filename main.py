@@ -69,7 +69,7 @@ parser.add_argument(
 
 parsed = None
 pass_queue = Queue()
-pass_queue_size = 0.0
+pass_queue_size = 0
 pass_queue_size_lock = threading.Lock()
 stop_event = threading.Event()
 gen_process = None
@@ -197,6 +197,8 @@ def read():
         notify("Failed while organizing/generating text")
         fatal_exit()
 
+    play()
+
     return f"Generated and queued {num_chars} characters for playback"
 
 
@@ -301,6 +303,22 @@ def volume(playback_volume):
     global parsed
     parsed.volume = playback_volume
     return f"Playback volume is now {parsed.volume}"
+
+
+@app.route("/play")
+def play():
+    if play_process is not None:
+        os.kill(play_process.pid, signal.SIGCONT)
+        return "Playback continued"
+    return "Nothing playing"
+
+
+@app.route("/pause")
+def pause():
+    if play_process is not None:
+        os.kill(play_process.pid, signal.SIGSTOP)
+        return "Playback paused"
+    return "Nothing playing"
 
 
 def notify(msg):

@@ -36,6 +36,11 @@ Select and read aloud text from anywhere 🎧
     curl --url http://localhost:5000/speed/1.25
     curl --url http://localhost:5000/volume/0.7
     ```
+9. Pause and play with:
+    ```bash
+    curl --url http://localhost:5000/pause
+    curl --url http://localhost:5000/play
+    ```
     
 ### Let's set a keybind
 You can set keybindings in your DE or window manager of choice for practial usage. For example, if you're running i3wm, add the following to your i3 config, `~/.config/i3/config`.
