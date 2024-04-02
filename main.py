@@ -353,6 +353,7 @@ def skip():
 
 
 def notify(msg):
+    global notifier
     notifier.send_sync(title="TTS Reader", message=msg, timeout=2)
 
 
