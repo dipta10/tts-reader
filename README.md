@@ -36,10 +36,12 @@ Select and read aloud text from anywhere 🎧
     curl --url http://localhost:5000/speed/1.25
     curl --url http://localhost:5000/volume/0.7
     ```
-9. Pause and play with:
+9. Pause, play, toggle and skip with:
     ```bash
     curl --url http://localhost:5000/pause
     curl --url http://localhost:5000/play
+    curl --url http://localhost:5000/toggle
+    curl --url http://localhost:5000/skip
     ```
     
 ### Let's set a keybind
@@ -48,6 +50,8 @@ You can set keybindings in your DE or window manager of choice for practial usag
 set $alt Mod1
 bindsym $alt+3 exec "curl --url http://localhost:5000/read"
 bindsym $alt+shift+3 exec "curl --url http://localhost:5000/stop"
+bindsym $alt+4 exec "curl --url http://localhost:5000/toggle"
+bindsym $alt+shift+4 exec "curl --url http://localhost:5000/skip"
 ```
 
 ### Available options
