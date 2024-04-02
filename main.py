@@ -78,9 +78,10 @@ app = Flask("tts-reader")
 
 
 def thread_play():
-    global play_process
     global parsed
+    global play_process
     global stop_event
+    global pass_queue
 
     ffplay_path = shutil.which("ffplay")
     if ffplay_path is None:
@@ -122,7 +123,7 @@ def thread_play():
             notify("Failed to play")
 
         finally:
-            pass
+            pass_queue.task_done()
 
 
 play_thread = threading.Thread(target=thread_play, daemon=True)
