@@ -175,9 +175,7 @@ def read():
 
     notify(f"Requested {num_chars} characters to be read")
 
-    sendaudio_type = request.args.get("sendaudio", None)
-    if sendaudio_type is not None and sendaudio_type.lower() not in ["wav", "raw"]:
-        return f"Unknown send audio format {sendaudio_type}"
+    sendaudio = request.args.get("sendaudio", None)
 
     try:
         if parsed.one_sentence:
@@ -187,23 +185,23 @@ def read():
                 tokens = tokens[1:]
                 text = sanitize_text(text)
 
-                out = generate_audio(text, sendaudio_type)
+                out = generate_audio(text)
                 if out is not None:
-                    if sendaudio_type is None:
+                    if sendaudio is not None:
+                        return out
+                    else:
                         pass_queue.put(out)
                         with pass_queue_size_lock:
                             pass_queue_size += len(out)
-                    else:
-                        return out
         else:
-            out = generate_audio(text, sendaudio_type)
+            out = generate_audio(text)
             if out is not None:
-                if sendaudio_type is None:
+                if sendaudio is not None:
+                    return out
+                else:
                     pass_queue.put(out)
                     with pass_queue_size_lock:
                         pass_queue_size += len(out)
-                else:
-                    return out
 
     except Exception as e:
         print(e)
@@ -215,12 +213,8 @@ def read():
     return f"Generated and queued {num_chars} characters for playback"
 
 
-def generate_audio(text, out_type=None):
+def generate_audio(text):
     global gen_process
-
-    extra_options = []
-    if out_type is None or out_type.lower() == "raw":
-        extra_options.append("--output-raw")
 
     try:
         gen_process = Popen(
@@ -228,14 +222,14 @@ def generate_audio(text, out_type=None):
                 sys.executable,
                 "-m",
                 "piper",
+                "--output-raw",
                 "--sentence-silence",
                 f"{parsed.sentence_silence}",
                 "--model",
                 parsed.model,
                 "--config",
                 parsed.model_config,
-            ]
-            + extra_options,
+            ],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             start_new_session=True,
