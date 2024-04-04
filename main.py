@@ -172,13 +172,14 @@ def read():
 
     sendaudio = request.args.get("sendaudio", None)
 
+    text = sanitize_text(text)
+
     try:
         if parsed.one_sentence:
             tokens = text.split(". ")
             while tokens and not stop_event.is_set():
                 text = tokens[0].strip() + "."
                 tokens = tokens[1:]
-                text = sanitize_text(text)
 
                 out = generate_audio(text)
                 if out is not None:
