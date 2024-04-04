@@ -12,13 +12,12 @@ Select and read aloud text from anywhere 🔊
 1. Download the models and their respective configurations in a directory. See [here](https://github.com/rhasspy/piper/blob/master/VOICES.md)
 2. Create a virtual environment, install requirements and run:
     ```bash
-    python -m venv venv
+    python -m venv venv --system-site-packages
     source venv/bin/activate
     pip install -r requirements.txt 
     python main.py --port 5000 --playback_speed=1.0 --volume_level=.8 --model yourmodel.onnx --model_config yourmodel.onnx.json --wayland
     ```
-3. Select any text in any application
-4. To read aloud:
+3. Select any text in any application 4. To read aloud:
     ```bash
     curl http://localhost:5000/read
     ```

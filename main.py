@@ -1,383 +1,222 @@
-from subprocess import Popen
-from queue import Queue
-import argparse
-import datetime
-import os
-import signal
-import subprocess
-import sys
-import shutil
-import threading
-import time
-
-from flask import Flask, request
 from desktop_notifier import DesktopNotifier
-from unidecode import unidecode
+from flask import Flask, request
+from locked import Locked
+from piper import Piper
+import argparse
+import logging
+import shutil
+import time
+import datetime
+import subprocess
 
-parser = argparse.ArgumentParser(
-    prog="tts-reader",
-)
-parser.add_argument("-i", "--ip", type=str, default="127.0.0.1", help="IP address")
-parser.add_argument("-p", "--port", type=int, default=5000, help="Port")
-parser.add_argument(
-    "-s", "--playback_speed", type=float, default=1.0, help="Playback speed"
-)
-parser.add_argument("-v", "--volume", type=float, default=1.0, help="Volume [0-1]")
-parser.add_argument(
-    "-r",
-    "--playback_sample_rate",
-    type=int,
-    default=22050,
-    help="Playback sample rate. More info at https://github.com/rhasspy/piper/blob/master/TRAINING.md",
-)
-parser.add_argument(
-    "-l",
-    "--sentence_silence",
-    type=float,
-    default=0.7,
-    help="Seconds of silence after each sentence. Passed to piper",
-)
-parser.add_argument(
-    "-o",
-    "--one_sentence",
-    default=False,
-    action=argparse.BooleanOptionalAction,
-    help="Process one sentence at a time, instead of the default whole selection",
-)
-parser.add_argument(
-    "-w",
-    "--wayland",
-    default=False,
-    action=argparse.BooleanOptionalAction,
-    help="Assume running under Wayland",
-)
-parser.add_argument("-m", "--model", type=str, default=None, help="Path to the model")
-parser.add_argument(
-    "-c",
-    "--model_config",
-    type=str,
-    default=None,
-    help="Path to the model configuration",
-)
-parser.add_argument(
-    "-d",
-    "--debug",
-    default=False,
-    action=argparse.BooleanOptionalAction,
-    help="Enable flask debug mode (developmental purposes)",
-)
-
-parsed = None
-pass_queue = Queue()
-pass_queue_size = 0
-pass_queue_size_lock = threading.Lock()
-gen_process = None
-play_process = None
-stop_event = threading.Event()
-begin_time = None
-paused = False
-notifier = DesktopNotifier()
-ffplay_path = None
-piper_path = None
-
-app = Flask("tts-reader")
+logger = logging.getLogger(__name__)
 
 
-def thread_play():
-    global play_process
-    global stop_event
-    global pass_queue
-    global pass_queue_size
-    global pass_queue_size_lock
+class App:
+    def __init__(self, parsed):
+        self.parsed = parsed
+        self.begin_time = time.time()
+        self.notifier = DesktopNotifier()
 
-    while True:
-        audio = pass_queue.get()
-        try:
-            if not stop_event.is_set():
-                play_process = Popen(
-                    [
-                        ffplay_path,
-                        "-hide_banner",
-                        "-loglevel",
-                        "panic",
-                        "-nostats",
-                        "-autoexit",
-                        "-nodisp",
-                        "-af",
-                        f"atempo={parsed.playback_speed},volume={parsed.volume}",
-                        "-f",
-                        "s16le",
-                        "-ar",
-                        f"{parsed.playback_sample_rate}",
-                        "-ac",
-                        "1",
-                        "-",
-                    ],
-                    stdin=subprocess.PIPE,
-                    start_new_session=True,
-                )
-                play_process.communicate(input=audio)
+        self.flask = Flask("tts-reader")
+        self.flask.add_url_rule(
+            "/read", "read", view_func=self.read, methods=["GET", "POST"]
+        )
+        self.flask.add_url_rule("/play", "play", view_func=self.play)
+        self.flask.add_url_rule("/pause", "pause", view_func=self.pause)
+        self.flask.add_url_rule("/toggle", "toggle", view_func=self.toggle)
+        self.flask.add_url_rule("/reset", "reset", view_func=self.reset)
+        self.flask.add_url_rule("/skip", "skip", view_func=self.skip)
+        self.flask.add_url_rule("/volume/<float:data>", "volume", view_func=self.volume)
+        self.flask.add_url_rule("/speed/<float:data>", "speed", view_func=self.speed)
+        self.flask.add_url_rule("/status", "status", view_func=self.status)
 
-        except Exception as e:
-            print(e)
-            notify("Failed to play")
+        self.wlpaste_path = shutil.which("wl-paste")
+        self.xclip_path = shutil.which("xclip")
+        if self.parsed.wayland is True:
+            if self.wlpaste_path is None:
+                raise Exception("Couldn't find the wl-paste binary")
+        else:
+            if self.xclip_path is None:
+                raise Exception("Couldn't find the xclip binary")
 
-        finally:
-            play_process = None
-            pass_queue.task_done()
-            with pass_queue_size_lock:
-                pass_queue_size -= len(audio)
-                pass_queue_size = 0 if pass_queue_size < 0 else pass_queue_size
+        self.tts = Piper(self.parsed)
 
+    def read(self):
+        num_chars = 0
 
-play_thread = threading.Thread(target=thread_play, daemon=True)
-play_thread.start()
-
-
-@app.route("/read", methods=["POST", "GET"])
-def read():
-    global pass_queue_size
-    global pass_queue_size_lock
-    global stop_event
-    stop_event.clear()
-
-    num_chars = 0
-
-    try:
         if request.method == "POST":
             if len(request.data) > 0:
-                text = request.data.decode("utf-8")
+                try:
+                    text = request.data.decode("utf-8")
+                except UnicodeError as e:
+                    s = "Failed to decode the POSTed data as UTF-8"
+                    logger.error("%s: %s", s, repr(e))
+                    self.notify(s)
+                    return s
+
                 num_chars = len(text)
+
             else:
-                s = "Empty post request or content type header is wrong"
-                print(s)
-                notify(s)
+                s = "Failed to get the POSTed data"
+                logger.error(
+                    "%s: Empty post request maybe because the content type header (%s) is wrong",
+                    s,
+                    request.content_type,
+                )
+                self.notify(s)
                 return s
 
         else:
-            out = subprocess.check_output(
-                ["wl-paste", "-p"]
-                if parsed.wayland
-                else ["xclip", "-o", "-selection primary"]
-            )
-            text = out.decode("utf-8")
-            num_chars = len(text)
+            try:
+                out = subprocess.run(
+                    [self.wlpaste_path, "-p"]
+                    if self.parsed.wayland
+                    else [self.xclip_path, "-o", "-selection primary"],
+                    check=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                ).stdout
 
-    except Exception as e:
-        print(e)
-        notify("Failed to get selected text")
-        return
+                try:
+                    text = out.decode("utf-8")
+                except UnicodeError as e:
+                    s = "Failed to decode the selection clipboard data as UTF-8"
+                    logger.error("%s: %s", s, repr(e))
+                    self.notify(s)
+                    return s
 
-    notify(f"Requested {num_chars} characters to be read")
+                num_chars = len(text)
 
-    sendaudio = request.args.get("sendaudio", None)
+            except subprocess.CalledProcessError as e:
+                s = "Failed to get the clipboard contents. Maybe the selection clipboard is empty?"
+                logger.error("%s: %s", s, repr(e))
+                self.notify(s)
+                return s
 
-    text = sanitize_text(text)
+        self.tts.speak(text)
 
-    try:
-        if parsed.one_sentence:
-            tokens = text.split(". ")
-            while tokens and not stop_event.is_set():
-                text = tokens[0].strip() + "."
-                tokens = tokens[1:]
+        s = f"Queued text of {num_chars} characters for the TTS"
+        self.notify(s)
+        return s
 
-                out = generate_audio(text)
-                if out is not None:
-                    if sendaudio is not None:
-                        return out
-                    else:
-                        pass_queue.put(out)
-                        with pass_queue_size_lock:
-                            pass_queue_size += len(out)
-        else:
-            out = generate_audio(text)
-            if out is not None:
-                if sendaudio is not None:
-                    return out
-                else:
-                    pass_queue.put(out)
-                    with pass_queue_size_lock:
-                        pass_queue_size += len(out)
+    def status(self):
+        return {"self": {
+            'uptime()': self.uptime(),
+            'parsed': self.parsed.__dict__,
+            }, "self.tts": self.tts.status()}
 
-    except Exception as e:
-        print(e)
-        notify("Failed while organizing/generating text")
-        fatal_exit()
+    def toggle(self):
+        self.tts.toggle()
+        return ""
 
-    play()
+    def play(self):
+        self.tts.play()
+        return ""
 
-    return f"Generated and queued {num_chars} characters for playback"
+    def pause(self):
+        self.tts.play()
+        return ""
 
+    def reset(self):
+        self.tts.reset()
+        return "Reseted"
 
-def generate_audio(text):
-    global gen_process
+    def skip(self):
+        self.tts.skip()
+        return ""
 
-    try:
-        gen_process = Popen(
-            [
-                piper_path,
-                "--output_raw",
-                "--sentence_silence",
-                f"{parsed.sentence_silence}",
-                "--model",
-                parsed.model,
-                "--config",
-                parsed.model_config,
-            ],
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            start_new_session=True,
+    def speed(self, data):
+        data = max(0.0, min(data, 10.0))
+        self.parsed.playback_speed = data
+        return ""
+
+    def volume(self, data):
+        data = max(0.0, min(data, 10.0))
+        self.parsed.volume = data
+        return ""
+
+    def uptime(self):
+        diff = time.time() - self.begin_time
+        return str(datetime.timedelta(seconds=int(diff)))
+
+    def run(self):
+        self.flask.run(
+            host=self.parsed.ip, port=self.parsed.port, debug=self.parsed.debug
         )
-        out, _ = gen_process.communicate(input=text.encode())
 
-    except Exception as e:
-        print(e)
-        notify("Failed while generating audio")
-        fatal_exit()
-
-    finally:
-        gen_process = None
-
-    return out
-
-
-def sanitize_text(text: str):
-    return unidecode(text).replace("‐\n", "").replace("‐ ", "")
-
-
-@app.route("/stop")
-def stop():
-    global stop_event
-    global pass_queue
-    global pass_queue_size
-    global pass_queue_size_lock
-    global paused
-
-    num_queue = pass_queue.qsize()
-
-    stop_event.set()
-    paused = False
-
-    while pass_queue.qsize() > 0:
-        pass_queue.get()
-    with pass_queue_size_lock:
-        pass_queue_size = 0
-
-    try:
-        if gen_process is not None:
-            print(f"Killing gen_process {gen_process.pid}")
-            os.killpg(gen_process.pid, signal.SIGTERM)
-
-        if play_process is not None:
-            print(f"Killing play_process {play_process.pid}")
-            os.killpg(play_process.pid, signal.SIGTERM)
-
-    except Exception as e:
-        print(e)
-        notify("Failed to stop TTS")
-
-    return f"Queue cleared of pending {num_queue} items. Killed the generate and play processes if running"
-
-
-@app.route("/status")
-def status():
-    return (
-        f"Generator process running? {'Yes at ' + str(gen_process.pid) if gen_process is not None else 'No'}\n"
-        + f"Playback process running? {'Yes at ' + str(play_process.pid) if play_process is not None else 'No'}\n"
-        + f"Playback speed? {parsed.playback_speed}\n"
-        + f"Playback volume? {parsed.volume}\n"
-        + f"Playback paused? {paused}\n"
-        + f"Pending queue length? {pass_queue.qsize()}\n"
-        + f"Queue size? {pass_queue_size} B, {pass_queue_size/1024:.2f} KB, {pass_queue_size/(1024**2):.2f} MB\n"
-        + f"Stop signal issued? {stop_event.is_set()}\n"
-        + f"Uptime? {uptime()}"
-    )
-
-
-@app.route("/speed/<float:playback_speed>")
-def speed(playback_speed):
-    global parsed
-    parsed.playback_speed = playback_speed
-    s = f"Playback speed is now {parsed.playback_speed}"
-    notify(s)
-    return s
-
-
-@app.route("/volume/<float:playback_volume>")
-def volume(playback_volume):
-    global parsed
-    parsed.volume = playback_volume
-    s = f"Playback volume is now {parsed.volume}"
-    notify(s)
-    return s
-
-
-@app.route("/play")
-def play():
-    global paused
-    paused = False
-    if play_process is not None:
-        os.kill(play_process.pid, signal.SIGCONT)
-        return "Playback continued"
-    return "Nothing playing"
-
-
-@app.route("/pause")
-def pause():
-    global paused
-    if play_process is not None:
-        os.kill(play_process.pid, signal.SIGSTOP)
-        paused = True
-        return "Playback paused"
-    return "Nothing playing"
-
-
-@app.route("/toggle")
-def toggle():
-    if paused:
-        return play()
-    else:
-        return pause()
-
-
-@app.route("/skip")
-def skip():
-    global paused
-    paused = False
-    if play_process is not None:
-        os.kill(play_process.pid, signal.SIGCONT)
-        os.killpg(play_process.pid, signal.SIGTERM)
-        return "Skipped current playing"
-    return "Nothing playing"
-
-
-def notify(msg):
-    global notifier
-    notifier.send_sync(title="TTS Reader", message=msg, timeout=2)
-
-
-def uptime():
-    diff = time.time() - begin_time
-    return str(datetime.timedelta(seconds=int(diff)))
-
-
-def fatal_exit():
-    os.kill(os.getpid(), signal.SIGTERM)
+    def notify(self, msg):
+        self.notifier.send_sync(title="TTS Reader", message=msg, timeout=2)
 
 
 if __name__ == "__main__":
-    begin_time = time.time()
+    parser = argparse.ArgumentParser(
+        prog="tts-reader",
+    )
+    parser.add_argument("-i", "--ip", type=str, default="127.0.0.1", help="IP address")
+    parser.add_argument("-p", "--port", type=int, default=5000, help="Port")
+    parser.add_argument(
+        "-s", "--playback_speed", type=float, default=1.0, help="Playback speed"
+    )
+    parser.add_argument("-v", "--volume", type=float, default=1.0, help="Volume [0-1]")
+    parser.add_argument(
+        "-r",
+        "--playback_sample_rate",
+        type=int,
+        default=22050,
+        help="Playback sample rate. More info at https://github.com/rhasspy/piper/blob/master/TRAINING.md",
+    )
+    parser.add_argument(
+        "-l",
+        "--sentence_silence",
+        type=float,
+        default=0.7,
+        help="Seconds of silence after each sentence. Passed to piper",
+    )
+    parser.add_argument(
+        "-o",
+        "--one_sentence",
+        default=False,
+        action=argparse.BooleanOptionalAction,
+        help="Process one sentence at a time, instead of the default whole selection",
+    )
+    parser.add_argument(
+        "-w",
+        "--wayland",
+        default=False,
+        action=argparse.BooleanOptionalAction,
+        help="Assume running under Wayland",
+    )
+    parser.add_argument(
+        "-e",
+        "--speechd",
+        default=False,
+        action=argparse.BooleanOptionalAction,
+        help="Use speechd instead of piper",
+    )
+    parser.add_argument(
+        "-m", "--model", type=str, default=None, help="Path to the model"
+    )
+    parser.add_argument(
+        "-c",
+        "--model_config",
+        type=str,
+        default=None,
+        help="Path to the model configuration",
+    )
+    parser.add_argument(
+        "-d",
+        "--debug",
+        default=False,
+        action=argparse.BooleanOptionalAction,
+        help="Enable flask debug mode (developmental purposes)",
+    )
+
     parsed = parser.parse_args()
 
-    ffplay_path, piper_path = shutil.which("ffplay"), shutil.which("piper-tts")
-    if ffplay_path is None or piper_path is None:
-        s = "ffplay or piper-tts is not in $PATH"
-        print(s)
-        notify(s)
-        fatal_exit()
+    logging.basicConfig(
+        encoding="utf-8", level=logging.DEBUG if parsed.debug else logging.INFO
+    )
 
-    if parsed.model is None or parsed.model_config is None:
-        print("Please provide both the --model and --model_config arguments")
-        fatal_exit()
-
-    app.run(host=parsed.ip, port=parsed.port, debug=parsed.debug)
+    app = App(parsed)
+    app.run()
