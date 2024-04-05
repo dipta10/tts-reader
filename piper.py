@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 class Piper(TTS):
     def __init__(self, parsed):
-        TTS.__init__(self)
+        super().__init__()
         self.parsed = parsed
         self.paused = False
         self.reset_issued = Locked(False)
@@ -108,9 +108,6 @@ class Piper(TTS):
             self.reset_issued.set(False)
             self.gen_queue.put(text)
             self.gen_queue_size.set(self.gen_queue_size.get() + len(text))
-
-    def is_speaking(self):
-        pass
 
     def play(self):
         self.reset_issued.set(False)

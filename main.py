@@ -120,7 +120,7 @@ class App:
 
     def reset(self):
         self.tts.reset()
-        return "Reseted"
+        return ""
 
     def skip(self):
         self.tts.skip()
