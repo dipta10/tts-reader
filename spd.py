@@ -1,5 +1,6 @@
 from tts import TTS
 import logging
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -11,22 +12,36 @@ except ImportError:
 
 
 class Spd(TTS):
-    def __init__(self):
-        TTS.__init__(self)
+    def __init__(self, parsed):
+        super().__init__()
         if not has_speechd:
             raise Exception(
                 "The speechd python module is unavailable. Please check if you have speech-dispatcher installed and/or you've enabled --system-site-packages for the virtualenv"
             )
-        self.sdclient = speechd.SSIPClient("tts-reader" + __name__)
+        self.parsed = parsed
+        self.sdclient = speechd.SSIPClient(f"tts-reader_{__name__}_{time.time()}")
+        self.inited = True
 
     def __del__(self):
-        pass
+        self.sdclient.close()
 
     def speak(self, text):
-        pass
+        self.sdclient.speak(text)
 
     def play(self):
         pass
 
     def pause(self):
+        pass
+
+    def toggle(self):
+        pass
+
+    def skip(self):
+        pass
+
+    def reset(self):
+        pass
+
+    def status(self):
         pass

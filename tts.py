@@ -3,6 +3,7 @@ from abc import ABC, abstractmethod
 
 class TTS(ABC):
     def __init__(self):
+        self.inited = False
         pass
 
     def __del__(self):

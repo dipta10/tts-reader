@@ -2,6 +2,7 @@ from desktop_notifier import DesktopNotifier
 from flask import Flask, request
 from locked import Locked
 from piper import Piper
+from spd import Spd
 import argparse
 import logging
 import shutil
@@ -40,7 +41,9 @@ class App:
             if self.xclip_path is None:
                 raise Exception("Couldn't find the xclip binary")
 
-        self.tts = Piper(self.parsed)
+        self.tts = Spd(self.parsed) if self.parsed.speechd else Piper(self.parsed)
+        if not self.tts.inited:
+            raise Exception("Failed to initialize the TTS backend")
 
     def read(self):
         num_chars = 0
@@ -101,10 +104,13 @@ class App:
         return s
 
     def status(self):
-        return {"self": {
-            'uptime()': self.uptime(),
-            'parsed': self.parsed.__dict__,
-            }, "self.tts": self.tts.status()}
+        return {
+            "self": {
+                "uptime()": self.uptime(),
+                "parsed": self.parsed.__dict__,
+            },
+            "self.tts": self.tts.status(),
+        }
 
     def toggle(self):
         self.tts.toggle()
@@ -128,7 +134,7 @@ class App:
 
     def speed(self, data):
         data = max(0.0, min(data, 10.0))
-        self.parsed.playback_speed = data
+        self.parsed.speed = data
         return ""
 
     def volume(self, data):
@@ -153,59 +159,52 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         prog="tts-reader",
     )
-    parser.add_argument("-i", "--ip", type=str, default="127.0.0.1", help="IP address")
-    parser.add_argument("-p", "--port", type=int, default=5000, help="Port")
+    parser.add_argument("--ip", type=str, default="127.0.0.1", help="IP address")
+    parser.add_argument("--port", type=int, default=5000, help="Port")
     parser.add_argument(
-        "-s", "--playback_speed", type=float, default=1.0, help="Playback speed"
-    )
-    parser.add_argument("-v", "--volume", type=float, default=1.0, help="Volume [0-1]")
-    parser.add_argument(
-        "-r",
-        "--playback_sample_rate",
-        type=int,
-        default=22050,
-        help="Playback sample rate. More info at https://github.com/rhasspy/piper/blob/master/TRAINING.md",
-    )
-    parser.add_argument(
-        "-l",
-        "--sentence_silence",
-        type=float,
-        default=0.7,
-        help="Seconds of silence after each sentence. Passed to piper",
-    )
-    parser.add_argument(
-        "-o",
-        "--one_sentence",
-        default=False,
-        action=argparse.BooleanOptionalAction,
-        help="Process one sentence at a time, instead of the default whole selection",
-    )
-    parser.add_argument(
-        "-w",
         "--wayland",
         default=False,
         action=argparse.BooleanOptionalAction,
         help="Assume running under Wayland",
     )
     parser.add_argument(
-        "-e",
         "--speechd",
         default=False,
         action=argparse.BooleanOptionalAction,
         help="Use speechd instead of piper",
     )
+    parser.add_argument("--volume", type=float, default=1.0, help="Volume [0-1]")
     parser.add_argument(
-        "-m", "--model", type=str, default=None, help="Path to the model"
+        "--speed", type=float, default=1.0, help="Playback speed [0-10]"
     )
     parser.add_argument(
-        "-c",
-        "--model_config",
+        "--piper_rate",
+        type=int,
+        default=22050,
+        help="Piper: Playback sample rate. More info at https://github.com/rhasspy/piper/blob/master/TRAINING.md",
+    )
+    parser.add_argument(
+        "--piper_sentence_silence",
+        type=float,
+        default=0.8,
+        help="Piper: Seconds of silence after each sentence",
+    )
+    parser.add_argument(
+        "--piper_one_sentence",
+        default=False,
+        action=argparse.BooleanOptionalAction,
+        help="Piper: Process one sentence at a time, instead of the default whole selection",
+    )
+    parser.add_argument(
+        "--piper_model", type=str, default=None, help="Piper: Path to the model"
+    )
+    parser.add_argument(
+        "--piper_model_config",
         type=str,
         default=None,
-        help="Path to the model configuration",
+        help="Piper: Path to the model configuration",
     )
     parser.add_argument(
-        "-d",
         "--debug",
         default=False,
         action=argparse.BooleanOptionalAction,

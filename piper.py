@@ -31,6 +31,7 @@ class Piper(TTS):
 
         self.gen_thread.start()
         self.play_thread.start()
+        self.inited = True
 
     def run_play_thread(self):
         while True:
@@ -50,11 +51,11 @@ class Piper(TTS):
                             "-autoexit",
                             "-nodisp",
                             "-af",
-                            f"atempo={self.parsed.playback_speed},volume={self.parsed.volume}",
+                            f"atempo={self.parsed.speed},volume={self.parsed.volume}",
                             "-f",
                             "s16le",
                             "-ar",
-                            f"{self.parsed.playback_sample_rate}",
+                            f"{self.parsed.piper_rate}",
                             "-ac",
                             "1",
                             "-",
@@ -82,11 +83,11 @@ class Piper(TTS):
                             self.piper_path,
                             "--output_raw",
                             "--sentence_silence",
-                            f"{self.parsed.sentence_silence}",
+                            f"{self.parsed.piper_sentence_silence}",
                             "--model",
-                            self.parsed.model,
+                            self.parsed.piper_model,
                             "--config",
-                            self.parsed.model_config,
+                            self.parsed.piper_model_config,
                         ],
                         stdin=subprocess.PIPE,
                         stdout=subprocess.PIPE,
