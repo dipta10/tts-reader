@@ -5,7 +5,6 @@ Select and read aloud text from anywhere 🔊
 - ffmpeg
 - wl-clipboard (Wayland only)
 - xclip (X11 only)
-- piper (https://github.com/rhasspy/piper/releases)
 - anything to send requests
 
 ### Working
