@@ -103,10 +103,15 @@ class App:
                 self.notify(s)
                 return s
 
-        s = f"Queued text of {num_chars} characters for the TTS\n"
+        text = unidecode(text.strip()).replace("‐\n", "").replace("‐ ", "")
+        if len(text) == 0:
+            s = "Skipped processing empty text"
+            self.notify(s)
+            return s
+
+        s = f"Queued text of {num_chars} characters for the TTS"
         self.notify(s)
 
-        text = unidecode(text).replace("‐\n", "").replace("‐ ", "")
         audio = self.tts.speak(text, getaudio)
 
         return audio if getaudio else s

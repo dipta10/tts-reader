@@ -22,6 +22,7 @@ class Piper(TTS):
         self.play_queue = queue.Queue()
         self.gen_queue = queue.Queue()
         self.get_queue = queue.Queue()
+        self.get_queue_lock = threading.Lock()
         self.play_queue_size = Locked(0)
         self.gen_queue_size = Locked(0)
         self.gen_process = Locked(None)
@@ -49,6 +50,11 @@ class Piper(TTS):
 
     def run_play_thread(self):
         while True:
+            if self.get_queue_lock.locked():
+                # None of our business. User is downloading audio
+                time.sleep(0.5)
+                continue
+
             audio = self.play_queue.get()
             if self.reset_issued.get():
                 self.play_queue.task_done()
@@ -130,18 +136,31 @@ class Piper(TTS):
                     self.play_queue_size.data += len(out)
 
     def speak(self, text, getaudio):
-        if len(text) > 0:
-            self.reset_issued.set(False)
-            self.gen_queue.put((text, getaudio))
-            with self.gen_queue_size.lock:
-                self.gen_queue_size.data += len(text)
+        tokens = [text]
+        audio = b""
+
+        if self.parsed.piper_one_sentence:
+            tokens = text.split(".")
+            for i in range(len(tokens)):
+                tokens[i] = tokens[i].strip() + "."
+
+        self.reset_issued.set(False)
+
+        # This lock is important because if another request arrives, results
+        # could possibly get mixed up get()ing from multiple places simultaneously
+        # A better solution could be a separate thread for getaudio
+        with self.get_queue_lock:
+            for text in tokens:
+                self.gen_queue.put((text, getaudio))
+                with self.gen_queue_size.lock:
+                    self.gen_queue_size.data += len(text)
 
             if getaudio:
-                audio = self.get_queue.get()
-                self.get_queue.task_done()
-                return audio
+                for i in range(len(tokens)):
+                    audio += self.get_queue.get()
+                    self.get_queue.task_done()
 
-        return b"" if getaudio else None
+        return audio if getaudio else None
 
     def play(self):
         self.reset_issued.set(False)
