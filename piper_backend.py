@@ -30,12 +30,12 @@ class Piper(TTS):
 
         self.piper_path = shutil.which("piper-tts")
         if self.piper_path is None and not self.parsed.piper_python:
-            logger.warning('The piper C++ executable was not found')
+            logger.warning("The piper C++ executable was not found")
 
         self.is_piper_python = self.piper_path is None or self.parsed.piper_python
         if self.is_piper_python:
-            if importlib.util.find_spec('piper') is None:
-                logger.critical('The piper python module was not found')
+            if importlib.util.find_spec("piper") is None:
+                logger.critical("The piper python module was not found")
                 self.inited = False
                 return
 
@@ -50,6 +50,7 @@ class Piper(TTS):
         while True:
             audio = self.play_queue.get()
             if self.reset_issued.get():
+                self.play_queue.task_done()
                 continue
 
             try:
@@ -80,22 +81,27 @@ class Piper(TTS):
             finally:
                 self.play_process.set(None)
                 self.play_queue.task_done()
-                self.play_queue_size.set(self.play_queue_size.get() - len(audio))
-                self.play_queue_size.set(max(0, self.play_queue_size.get()))
+                with self.play_queue_size.lock:
+                    self.play_queue_size.data = self.play_queue_size.data - len(audio)
+                    self.play_queue_size.data = max(0, self.play_queue_size.data)
 
     def run_gen_thread(self):
         while True:
             text = self.gen_queue.get()
             if self.reset_issued.get():
+                self.gen_queue.task_done()
                 continue
 
-            logger.debug('here')
-
             try:
-                prefix = [sys.executable, '-m', 'piper'] if self.is_piper_python else [self.piper_path]
+                prefix = (
+                    [sys.executable, "-m", "piper"]
+                    if self.is_piper_python
+                    else [self.piper_path]
+                )
                 self.gen_process.set(
                     subprocess.Popen(
-                        prefix + [
+                        prefix
+                        + [
                             "--output_raw",
                             "--sentence_silence",
                             f"{self.parsed.piper_sentence_silence}",
@@ -112,18 +118,21 @@ class Piper(TTS):
             finally:
                 self.gen_process.set(None)
                 self.gen_queue.task_done()
-                self.gen_queue_size.set(self.gen_queue_size.get() - len(text))
-                self.gen_queue_size.set(max(0, self.gen_queue_size.get()))
+                with self.gen_queue_size.lock:
+                    self.gen_queue_size.data = self.gen_queue_size.data - len(audio)
+                    self.gen_queue_size.data = max(0, self.gen_queue_size.data)
 
             if len(out) > 0:
                 self.play_queue.put(out)
-                self.play_queue_size.set(self.play_queue_size.get() + len(out))
+                with self.play_queue_size.lock:
+                    self.play_queue_size.data += len(out)
 
     def speak(self, text):
         if len(text) > 0:
             self.reset_issued.set(False)
             self.gen_queue.put(text)
-            self.gen_queue_size.set(self.gen_queue_size.get() + len(text))
+            with self.gen_queue_size.lock:
+                self.gen_queue_size.data += len(text)
 
     def play(self):
         self.reset_issued.set(False)
@@ -153,6 +162,8 @@ class Piper(TTS):
     def reset(self):
         # Make sure more commands aren't enqueued
         self.reset_issued.set(True)
+        self.stop_gen_process()
+        self.stop_play_process()
 
         self.paused = False
 
@@ -165,9 +176,6 @@ class Piper(TTS):
 
         self.gen_queue_size.set(0)
         self.play_queue_size.set(0)
-
-        self.stop_gen_process()
-        self.stop_play_process()
 
     def stop_play_process(self):
         with self.play_process.lock:
