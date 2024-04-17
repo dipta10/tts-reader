@@ -1,5 +1,6 @@
 from desktop_notifier import DesktopNotifier
 from flask import Flask, request
+from unidecode import unidecode
 from locked import Locked
 from piper_backend import Piper
 from speechd_backend import Speechd
@@ -105,6 +106,7 @@ class App:
         s = f"Queued text of {num_chars} characters for the TTS\n"
         self.notify(s)
 
+        text = unidecode(text).replace("‐\n", "").replace("‐ ", "")
         audio = self.tts.speak(text, getaudio)
 
         return audio if getaudio else s
