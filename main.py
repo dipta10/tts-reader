@@ -102,7 +102,7 @@ class App:
                 self.notify(s)
                 return s
 
-        s = f"Queued text of {num_chars} characters for the TTS"
+        s = f"Queued text of {num_chars} characters for the TTS\n"
         self.notify(s)
 
         audio = self.tts.speak(text, getaudio)
