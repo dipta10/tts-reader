@@ -10,10 +10,16 @@ try:
 except ImportError:
     has_speechd = False
 
+# TODO: Implement /read?getaudio
+
 
 class Speechd(TTS):
     def __init__(self, parsed):
         super().__init__()
+
+        logger.critical("The speech-dispatcher backend is currently unimplemented")
+        self.inited = False
+        return
 
         if not has_speechd:
             logger.critical(
@@ -27,9 +33,10 @@ class Speechd(TTS):
         self.inited = True
 
     def __del__(self):
-        self.sdclient.close()
+        if hasattr(self, 'sdclient'):
+            self.sdclient.close()
 
-    def speak(self, text):
+    def speak(self, text, getaudio):
         self.sdclient.speak(text)
 
     def play(self):

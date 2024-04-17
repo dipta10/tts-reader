@@ -10,7 +10,7 @@ class TTS(ABC):
         pass
 
     @abstractmethod
-    def speak(self, text):
+    def speak(self, text, getaudio):
         pass
 
     @abstractmethod

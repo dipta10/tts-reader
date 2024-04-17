@@ -51,6 +51,8 @@ class App:
     def read(self):
         num_chars = 0
 
+        getaudio = request.args.get("getaudio", None) is not None
+
         if request.method == "POST":
             if len(request.data) > 0:
                 try:
@@ -100,11 +102,12 @@ class App:
                 self.notify(s)
                 return s
 
-        self.tts.speak(text)
-
         s = f"Queued text of {num_chars} characters for the TTS"
         self.notify(s)
-        return s
+
+        audio = self.tts.speak(text, getaudio)
+
+        return audio if getaudio else s
 
     def status(self):
         return {

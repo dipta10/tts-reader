@@ -26,9 +26,9 @@ Select and read aloud text from anywhere 🔊
     ```bash
     echo Hope you are having a lovely day, sir. | curl -X POST -H 'Content-Type: application/octet-stream' --data-binary @- localhost:5000/read
     ```
-6. To just download the generated audio:
+6. To just download the generated audio, instead of playing it:
     ```bash
-    curl 'http://localhost:5000/read?sendaudio'
+    curl 'http://localhost:5000/read?getaudio'
     ```
 7. To interrupt the reading:
     ```bash
