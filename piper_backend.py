@@ -1,12 +1,13 @@
 from tts import TTS
+import importlib
 import logging
-import config
-import time
+import queue
 import shutil
-import threading
 import signal
 import subprocess
-import queue
+import sys
+import threading
+import time
 from locked import Locked
 
 logger = logging.getLogger(__name__)
@@ -24,8 +25,20 @@ class Piper(TTS):
         self.gen_queue_size = Locked(0)
         self.gen_process = Locked(None)
         self.play_process = Locked(None)
+
         self.ffplay_path = shutil.which("ffplay")
+
         self.piper_path = shutil.which("piper-tts")
+        if self.piper_path is None and not self.parsed.piper_python:
+            logger.warning('The piper C++ executable was not found')
+
+        self.is_piper_python = self.piper_path is None or self.parsed.piper_python
+        if self.is_piper_python:
+            if importlib.util.find_spec('piper') is None:
+                logger.critical('The piper python module was not found')
+                self.inited = False
+                return
+
         self.gen_thread = threading.Thread(target=self.run_gen_thread, daemon=True)
         self.play_thread = threading.Thread(target=self.run_play_thread, daemon=True)
 
@@ -76,11 +89,13 @@ class Piper(TTS):
             if self.reset_issued.get():
                 continue
 
+            logger.debug('here')
+
             try:
+                prefix = [sys.executable, '-m', 'piper'] if self.is_piper_python else [self.piper_path]
                 self.gen_process.set(
                     subprocess.Popen(
-                        [
-                            self.piper_path,
+                        prefix + [
                             "--output_raw",
                             "--sentence_silence",
                             f"{self.parsed.piper_sentence_silence}",

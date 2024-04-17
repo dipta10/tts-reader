@@ -1,8 +1,8 @@
 from desktop_notifier import DesktopNotifier
 from flask import Flask, request
 from locked import Locked
-from piper import Piper
-from spd import Spd
+from piper_backend import Piper
+from speechd_backend import Speechd
 import argparse
 import logging
 import shutil
@@ -16,6 +16,9 @@ logger = logging.getLogger(__name__)
 class App:
     def __init__(self, parsed):
         self.parsed = parsed
+        self.parsed.volume = max(0.0, min(self.parsed.volume, 1.0))
+        self.parsed.speed = max(0.0, min(self.parsed.speed, 10.0))
+
         self.begin_time = time.time()
         self.notifier = DesktopNotifier()
 
@@ -41,7 +44,7 @@ class App:
             if self.xclip_path is None:
                 raise Exception("Couldn't find the xclip binary")
 
-        self.tts = Spd(self.parsed) if self.parsed.speechd else Piper(self.parsed)
+        self.tts = Speechd(self.parsed) if self.parsed.speechd else Piper(self.parsed)
         if not self.tts.inited:
             raise Exception("Failed to initialize the TTS backend")
 
@@ -121,7 +124,7 @@ class App:
         return ""
 
     def pause(self):
-        self.tts.play()
+        self.tts.pause()
         return ""
 
     def reset(self):
@@ -138,7 +141,7 @@ class App:
         return ""
 
     def volume(self, data):
-        data = max(0.0, min(data, 10.0))
+        data = max(0.0, min(data, 1.0))
         self.parsed.volume = data
         return ""
 
@@ -168,10 +171,16 @@ if __name__ == "__main__":
         help="Assume running under Wayland",
     )
     parser.add_argument(
+        "--piper_python",
+        default=False,
+        action=argparse.BooleanOptionalAction,
+        help="Attempt to use the piper python module. Has no effect if a different backend is selected",
+    )
+    parser.add_argument(
         "--speechd",
         default=False,
         action=argparse.BooleanOptionalAction,
-        help="Use speechd instead of piper",
+        help="Use speechd instead of piper. Incomplete",
     )
     parser.add_argument("--volume", type=float, default=1.0, help="Volume [0-1]")
     parser.add_argument(

@@ -11,7 +11,7 @@ except ImportError:
     has_speechd = False
 
 
-class Spd(TTS):
+class Speechd(TTS):
     def __init__(self, parsed):
         super().__init__()
         if not has_speechd:
