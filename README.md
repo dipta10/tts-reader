@@ -63,13 +63,13 @@ bindsym Shift+XF86AudioNext exec "curl http://localhost:5000/skip"
 ### Available options
 ```
 usage: tts-reader [-h] [--ip IP] [--port PORT] [--wayland | --no-wayland]
-                  [--piper_python | --no-piper_python]
+                  [--piper-python | --no-piper-python]
                   [--speechd | --no-speechd] [--volume VOLUME] [--speed SPEED]
-                  [--piper_rate PIPER_RATE]
-                  [--piper_sentence_silence PIPER_SENTENCE_SILENCE]
-                  [--piper_one_sentence | --no-piper_one_sentence]
-                  [--piper_model PIPER_MODEL]
-                  [--piper_model_config PIPER_MODEL_CONFIG]
+                  [--piper-rate PIPER_RATE]
+                  [--piper-sentence-silence PIPER_SENTENCE_SILENCE]
+                  [--piper-one-sentence | --no-piper-one-sentence]
+                  [--piper-model PIPER_MODEL]
+                  [--piper-model-config PIPER_MODEL_CONFIG]
                   [--debug | --no-debug]
 
 options:
@@ -78,24 +78,24 @@ options:
   --port PORT           Port
   --wayland, --no-wayland
                         Assume running under Wayland
-  --piper_python, --no-piper_python
+  --piper-python, --no-piper-python
                         Attempt to use the piper python module. Has no effect
                         if a different backend is selected
   --speechd, --no-speechd
                         Use speechd instead of piper. Incomplete
   --volume VOLUME       Volume [0-1]
   --speed SPEED         Playback speed [0-10]
-  --piper_rate PIPER_RATE
+  --piper-rate PIPER_RATE
                         Piper: Playback sample rate. More info at https://gith
                         ub.com/rhasspy/piper/blob/master/TRAINING.md
-  --piper_sentence_silence PIPER_SENTENCE_SILENCE
+  --piper-sentence-silence PIPER_SENTENCE_SILENCE
                         Piper: Seconds of silence after each sentence
-  --piper_one_sentence, --no-piper_one_sentence
+  --piper-one-sentence, --no-piper-one-sentence
                         Piper: Process one sentence at a time, instead of the
                         default whole selection
-  --piper_model PIPER_MODEL
+  --piper-model PIPER_MODEL
                         Piper: Path to the model
-  --piper_model_config PIPER_MODEL_CONFIG
+  --piper-model-config PIPER_MODEL_CONFIG
                         Piper: Path to the model configuration
   --debug, --no-debug   Enable flask debug mode (developmental purposes)
 ```

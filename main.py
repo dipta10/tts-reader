@@ -171,7 +171,7 @@ if __name__ == "__main__":
         help="Assume running under Wayland",
     )
     parser.add_argument(
-        "--piper_python",
+        "--piper-python",
         default=False,
         action=argparse.BooleanOptionalAction,
         help="Attempt to use the piper python module. Has no effect if a different backend is selected",
@@ -187,28 +187,28 @@ if __name__ == "__main__":
         "--speed", type=float, default=1.0, help="Playback speed [0-10]"
     )
     parser.add_argument(
-        "--piper_rate",
+        "--piper-rate",
         type=int,
         default=22050,
         help="Piper: Playback sample rate. More info at https://github.com/rhasspy/piper/blob/master/TRAINING.md",
     )
     parser.add_argument(
-        "--piper_sentence_silence",
+        "--piper-sentence-silence",
         type=float,
         default=0.8,
         help="Piper: Seconds of silence after each sentence",
     )
     parser.add_argument(
-        "--piper_one_sentence",
+        "--piper-one-sentence",
         default=False,
         action=argparse.BooleanOptionalAction,
         help="Piper: Process one sentence at a time, instead of the default whole selection",
     )
     parser.add_argument(
-        "--piper_model", type=str, default=None, help="Piper: Path to the model"
+        "--piper-model", type=str, default=None, help="Piper: Path to the model"
     )
     parser.add_argument(
-        "--piper_model_config",
+        "--piper-model-config",
         type=str,
         default=None,
         help="Piper: Path to the model configuration",
