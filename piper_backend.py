@@ -23,8 +23,6 @@ class Piper(TTS):
         self.gen_queue = queue.Queue()
         self.get_queue = queue.Queue()
         self.get_queue_lock = threading.Lock()
-        self.play_queue_size = Locked(0)
-        self.gen_queue_size = Locked(0)
         self.gen_process = Locked(None)
         self.play_process = Locked(None)
 
@@ -88,9 +86,6 @@ class Piper(TTS):
             finally:
                 self.play_process.set(None)
                 self.play_queue.task_done()
-                with self.play_queue_size.lock:
-                    self.play_queue_size.data = self.play_queue_size.data - len(audio)
-                    self.play_queue_size.data = max(0, self.play_queue_size.data)
 
     def run_gen_thread(self):
         while True:
@@ -124,16 +119,11 @@ class Piper(TTS):
             finally:
                 self.gen_process.set(None)
                 self.gen_queue.task_done()
-                with self.gen_queue_size.lock:
-                    self.gen_queue_size.data = self.gen_queue_size.data - len(text)
-                    self.gen_queue_size.data = max(0, self.gen_queue_size.data)
 
             if getaudio:
                 self.get_queue.put(b"" if len(out) == 0 else out)
             elif len(out) > 0:
                 self.play_queue.put(out)
-                with self.play_queue_size.lock:
-                    self.play_queue_size.data += len(out)
 
     def speak(self, text, getaudio):
         tokens = [text]
@@ -156,13 +146,11 @@ class Piper(TTS):
                 if self.reset_issued.get():
                     return done()
                 self.gen_queue.put((text, getaudio))
-                with self.gen_queue_size.lock:
-                    self.gen_queue_size.data += len(text)
 
             if getaudio:
                 for i in range(len(tokens)):
                     if self.reset_issued.get():
-                        audio = b''
+                        audio = b""
                         return done()
                     audio += self.get_queue.get()
                     self.get_queue.task_done()
@@ -214,9 +202,6 @@ class Piper(TTS):
             self.get_queue.get()
             self.get_queue.task_done()
 
-        self.gen_queue_size.set(0)
-        self.play_queue_size.set(0)
-
     def stop_play_process(self):
         with self.play_process.lock:
             if self.play_process.data is not None:
@@ -234,8 +219,6 @@ class Piper(TTS):
             "gen_queue.qsize()": self.gen_queue.qsize(),
             "play_queue.qsize()": self.play_queue.qsize(),
             "get_queue.qsize()": self.get_queue.qsize(),
-            "gen_queue_size.get()": self.gen_queue_size.get(),
-            "play_queue_size.get() / 1024**2": self.play_queue_size.get() / 1024**2,
             "gen_process.get().pid?": None
             if self.gen_process.get() is None
             else self.gen_process.get().pid,
