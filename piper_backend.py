@@ -192,7 +192,7 @@ class Piper(TTS):
             "reset_issued.get()": self.reset_issued.get(),
             "gen_queue.qsize()": self.gen_queue.qsize(),
             "play_queue.qsize()": self.play_queue.qsize(),
-            "gen_queue_size.get() / 1024**2": self.gen_queue_size.get() / 1024**2,
+            "gen_queue_size.get()": self.gen_queue_size.get(),
             "play_queue_size.get() / 1024**2": self.play_queue_size.get() / 1024**2,
             "gen_process.get().pid?": None
             if self.gen_process.get() is None
