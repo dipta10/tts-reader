@@ -16,7 +16,7 @@ Select and read aloud text from anywhere 🔊
     python -m venv venv --system-site-packages
     source venv/bin/activate
     pip install -r requirements.txt 
-    python main.py --port 5000 --playback_speed=1.0 --volume_level=.8 --model yourmodel.onnx --model_config yourmodel.onnx.json --wayland
+    python main.py --port 5000 --speed=1.0 --volume=.8 --piper-model yourmodel.onnx --piper-model-config yourmodel.onnx.json --wayland
     ```
 4. Select any text in any application 4. To read aloud:
     ```bash
