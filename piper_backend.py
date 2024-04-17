@@ -139,6 +139,8 @@ class Piper(TTS):
         tokens = [text]
         audio = b""
 
+        done = lambda: audio if getaudio else None
+
         if self.parsed.piper_one_sentence:
             tokens = text.split(".")
             for i in range(len(tokens)):
@@ -151,16 +153,21 @@ class Piper(TTS):
         # A better solution could be a separate thread for getaudio
         with self.get_queue_lock:
             for text in tokens:
+                if self.reset_issued.get():
+                    return done()
                 self.gen_queue.put((text, getaudio))
                 with self.gen_queue_size.lock:
                     self.gen_queue_size.data += len(text)
 
             if getaudio:
                 for i in range(len(tokens)):
+                    if self.reset_issued.get():
+                        audio = b''
+                        return done()
                     audio += self.get_queue.get()
                     self.get_queue.task_done()
 
-        return audio if getaudio else None
+        return done()
 
     def play(self):
         self.reset_issued.set(False)
@@ -190,6 +197,8 @@ class Piper(TTS):
     def reset(self):
         # Make sure more commands aren't enqueued
         self.reset_issued.set(True)
+        time.sleep(0.25)
+
         self.stop_gen_process()
         self.stop_play_process()
 
@@ -201,6 +210,9 @@ class Piper(TTS):
         while self.play_queue.qsize() > 0:
             self.play_queue.get()
             self.play_queue.task_done()
+        while self.get_queue.qsize() > 0:
+            self.get_queue.get()
+            self.get_queue.task_done()
 
         self.gen_queue_size.set(0)
         self.play_queue_size.set(0)
@@ -221,6 +233,7 @@ class Piper(TTS):
             "reset_issued.get()": self.reset_issued.get(),
             "gen_queue.qsize()": self.gen_queue.qsize(),
             "play_queue.qsize()": self.play_queue.qsize(),
+            "get_queue.qsize()": self.get_queue.qsize(),
             "gen_queue_size.get()": self.gen_queue_size.get(),
             "play_queue_size.get() / 1024**2": self.play_queue_size.get() / 1024**2,
             "gen_process.get().pid?": None
