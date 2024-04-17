@@ -93,11 +93,10 @@ class Piper(TTS):
                 continue
 
             try:
-                prefix = (
-                    [sys.executable, "-m", "piper"]
-                    if self.is_piper_python
-                    else [self.piper_path]
-                )
+                prefix = [self.piper_path]
+                if self.is_piper_python:
+                    prefix = [sys.executable, "-m", "piper"]
+
                 self.gen_process.set(
                     subprocess.Popen(
                         prefix
@@ -119,7 +118,7 @@ class Piper(TTS):
                 self.gen_process.set(None)
                 self.gen_queue.task_done()
                 with self.gen_queue_size.lock:
-                    self.gen_queue_size.data = self.gen_queue_size.data - len(audio)
+                    self.gen_queue_size.data = self.gen_queue_size.data - len(text)
                     self.gen_queue_size.data = max(0, self.gen_queue_size.data)
 
             if len(out) > 0:
