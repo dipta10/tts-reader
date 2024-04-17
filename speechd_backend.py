@@ -48,4 +48,4 @@ class Speechd(TTS):
         pass
 
     def status(self):
-        pass
+        return dict({})
