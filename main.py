@@ -103,6 +103,8 @@ class App:
                 self.notify(s)
                 return s
 
+        for char in self.parsed.ignore_chars:
+            text = text.replace(char, "")
         text = unidecode(text.strip()).replace("‐\n", "").replace("‐ ", "")
         if len(text) == 0:
             s = "Skipped processing empty text"
@@ -228,6 +230,12 @@ if __name__ == "__main__":
         default=False,
         action=argparse.BooleanOptionalAction,
         help="Enable flask debug mode (developmental purposes)",
+    )
+    parser.add_argument(
+        '--ignore_chars', 
+        nargs='*', 
+        default=[], 
+        help='List of characters to ignore'
     )
 
     parsed = parser.parse_args()

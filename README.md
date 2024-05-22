@@ -53,6 +53,11 @@ Select and read aloud text from anywhere 🔊
     curl http://localhost:5000/toggle
     curl http://localhost:5000/skip
     ```
+11. To ignore certain characters in the text:
+    ```bash
+    python main.py --ignore_chars '*' '-'
+    ```
+    This will remove all instances of these characters from the text before processing it. You can specify any characters you want to ignore by passing them as arguments after `ignore_chars`.
 
 ### Let's set keybinds
 
@@ -77,6 +82,7 @@ usage: tts-reader [-h] [--ip IP] [--port PORT] [--wayland | --no-wayland]
                   [--piper-model PIPER_MODEL]
                   [--piper-model-config PIPER_MODEL_CONFIG]
                   [--debug | --no-debug]
+                  [--ignore_chars [IGNORE_CHARS ...]]
 
 options:
   -h, --help            show this help message and exit
@@ -104,4 +110,6 @@ options:
   --piper-model-config PIPER_MODEL_CONFIG
                         Piper: Path to the model configuration
   --debug, --no-debug   Enable flask debug mode (developmental purposes)
+  --ignore_chars [IGNORE_CHARS ...]
+                        List of characters to ignore
 ```
