@@ -5,6 +5,7 @@ Select and read aloud text from anywhere 🔊
 ### Requirements
 
 - ffmpeg
+- aplay
 - wl-clipboard (Wayland only)
 - xclip (X11 only)
 - piper C++ (https://github.com/rhasspy/piper/releases), or piper python (https://pypi.org/project/piper-tts/)

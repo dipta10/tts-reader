@@ -25,6 +25,7 @@ class Piper(TTS):
         self.get_queue_lock = threading.Lock()
         self.gen_process = Locked(None)
         self.play_process = Locked(None)
+        self.ffmpeg_process = Locked(None)
 
         self.ffplay_path = shutil.which("ffplay")
 
@@ -59,31 +60,37 @@ class Piper(TTS):
                 continue
 
             try:
-                self.play_process.set(
-                    subprocess.Popen(
-                        [
-                            self.ffplay_path,
-                            "-hide_banner",
-                            "-loglevel",
-                            "panic",
-                            "-nostats",
-                            "-autoexit",
-                            "-nodisp",
-                            "-af",
-                            f"atempo={self.parsed.speed},volume={self.parsed.volume}",
-                            "-f",
-                            "s16le",
-                            "-ar",
-                            f"{self.parsed.piper_rate}",
-                            "-ac",
-                            "1",
-                            "-",
-                        ],
-                        stdin=subprocess.PIPE,
-                    )
+                ffmpeg_proc = subprocess.Popen(
+                    [
+                        "ffmpeg",
+                        "-f", "s16le",
+                        "-ar", str(self.parsed.piper_rate),
+                        "-ac", "1",
+                        "-i", "-",
+                        "-af", f"atempo={self.parsed.speed},volume={self.parsed.volume}",
+                        "-f", "s16le",
+                        "-ar", str(self.parsed.piper_rate),
+                        "-ac", "1",
+                        "-",
+                    ],
+                    stdin=subprocess.PIPE,
+                    stdout=subprocess.PIPE,
                 )
-                self.play_process.get().communicate(input=audio)
+
+                aplay_proc = subprocess.Popen(
+                    ["aplay", "-f", "S16_LE", "-c", "1", "-r", str(self.parsed.piper_rate)],
+                    stdin=ffmpeg_proc.stdout,
+                )
+                self.ffmpeg_process.set(ffmpeg_proc)
+                self.play_process.set(aplay_proc)
+
+                ffmpeg_proc.stdin.write(audio)
+                ffmpeg_proc.stdin.close()
+
+                aplay_proc.wait()
+                ffmpeg_proc.wait()
             finally:
+                self.ffmpeg_process.set(None)
                 self.play_process.set(None)
                 self.play_queue.task_done()
 
@@ -206,6 +213,12 @@ class Piper(TTS):
         with self.play_process.lock:
             if self.play_process.data is not None:
                 self.play_process.data.terminate()
+                self.play_process.data.send_signal(signal.SIGKILL)
+
+        with self.ffmpeg_process.lock:
+            if self.ffmpeg_process.data is not None:
+                self.ffmpeg_process.data.terminate()
+                self.ffmpeg_process.data.send_signal(signal.SIGKILL)
 
     def stop_gen_process(self):
         with self.gen_process.lock:
