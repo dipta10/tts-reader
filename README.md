@@ -8,12 +8,12 @@ Select and read aloud text from anywhere 🔊
 - aplay
 - wl-clipboard (Wayland only)
 - xclip (X11 only)
-- piper C++ (https://github.com/rhasspy/piper/releases), or piper python (https://pypi.org/project/piper-tts/)
+- piper [C++](https://github.com/rhasspy/piper/releases), or [piper python](https://pypi.org/project/piper-tts/)
 - anything to send requests
 
 ### Working
 
-1. Install piper in your $PATH if using the original C++ variant, or `pip install piper-tts` if using the Python wrapper
+1. Install piper in your $PATH if using the original C++ variant, or `pip install piper-tts` if using the Python wrapper. If using Python, make sure to use **Python v3.10.12** because of this [issue](https://github.com/rhasspy/piper/issues/509).
 2. Download the models and their respective configurations in a directory. See [here](https://github.com/rhasspy/piper/blob/master/VOICES.md)
 3. Create a virtual environment, install requirements and run:
    ```bash
