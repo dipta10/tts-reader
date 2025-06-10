@@ -75,20 +75,48 @@ class Piper(TTS):
                     ],
                     stdin=subprocess.PIPE,
                     stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
                 )
 
                 aplay_proc = subprocess.Popen(
                     ["aplay", "-f", "S16_LE", "-c", "1", "-r", str(self.parsed.piper_rate)],
                     stdin=ffmpeg_proc.stdout,
+                    stdout=subprocess.PIPE,
                 )
                 self.ffmpeg_process.set(ffmpeg_proc)
                 self.play_process.set(aplay_proc)
 
-                ffmpeg_proc.stdin.write(audio)
-                ffmpeg_proc.stdin.close()
+                try:
+                    ffmpeg_proc.stdin.write(audio)
+                except BrokenPipeError as e:
+                    logger.error("ffmpeg stdin closed (BrokenPipeError), likely due to reset/termination.", exc_info=True)
+                except Exception as e:
+                    logging.error("Error writing to ffmpeg stdin: %s", repr(e), exc_info=True)
+                finally:
+                    try:
+                        ffmpeg_proc.stdin.close()
+                    except Exception as e:
+                        logger.error("Error closing ffmpeg stdin: %s", repr(e), exc_info=True)
 
+                with open("app.log", "ab") as log_file:
+                    log_file.write(b"ffmpeg stderr\n")
+                    for line in iter(ffmpeg_proc.stderr.readline, b""):
+                        sys.stdout.buffer.write(line)
+                        sys.stdout.buffer.flush()
+                        log_file.write(line)
+                        log_file.flush()
+
+                    for line in iter(aplay_proc.stdout.readline, b""):
+                        sys.stdout.buffer.write(line)
+                        sys.stdout.buffer.flush()
+                        log_file.write(line)
+                        log_file.flush()
+
+                ffmpeg_proc.stderr.close()
                 aplay_proc.wait()
                 ffmpeg_proc.wait()
+            except Exception as e:
+                logger.error("Error while playing audio: %s", repr(e), exc_info=True)
             finally:
                 self.ffmpeg_process.set(None)
                 self.play_process.set(None)

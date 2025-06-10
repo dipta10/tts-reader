@@ -1,7 +1,6 @@
 from desktop_notifier import DesktopNotifier
 from flask import Flask, request
 from unidecode import unidecode
-from locked import Locked
 from piper_backend import Piper
 from speechd_backend import Speechd
 import argparse
@@ -11,8 +10,17 @@ import time
 import datetime
 import subprocess
 
-logger = logging.getLogger(__name__)
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler("app.log"),
+        logging.StreamHandler()
+    ]
+)
 
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 class App:
     def __init__(self, parsed):
@@ -238,7 +246,21 @@ if __name__ == "__main__":
         help='List of characters to ignore'
     )
 
+    parser.add_argument(
+        "--log-level",
+        type=str,
+        default="INFO",
+        choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
+        help="Set the logging level",
+    )
+
     parsed = parser.parse_args()
+
+    try:
+        if parsed.log_level:
+            logging.getLogger().setLevel(parsed.log_level)
+    except Exception as e:
+        logger.error("Error setting log level")
 
     logging.basicConfig(
         encoding="utf-8", level=logging.DEBUG if parsed.debug else logging.INFO
