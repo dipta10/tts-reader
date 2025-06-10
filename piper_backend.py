@@ -75,7 +75,6 @@ class Piper(TTS):
                     ],
                     stdin=subprocess.PIPE,
                     stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
                 )
 
                 aplay_proc = subprocess.Popen(
@@ -98,21 +97,6 @@ class Piper(TTS):
                     except Exception as e:
                         logger.error("Error closing ffmpeg stdin: %s", repr(e), exc_info=True)
 
-                with open("app.log", "ab") as log_file:
-                    log_file.write(b"ffmpeg stderr\n")
-                    for line in iter(ffmpeg_proc.stderr.readline, b""):
-                        sys.stdout.buffer.write(line)
-                        sys.stdout.buffer.flush()
-                        log_file.write(line)
-                        log_file.flush()
-
-                    for line in iter(aplay_proc.stdout.readline, b""):
-                        sys.stdout.buffer.write(line)
-                        sys.stdout.buffer.flush()
-                        log_file.write(line)
-                        log_file.flush()
-
-                ffmpeg_proc.stderr.close()
                 aplay_proc.wait()
                 ffmpeg_proc.wait()
             except Exception as e:
