@@ -84,6 +84,7 @@ usage: tts-reader [-h] [--ip IP] [--port PORT] [--wayland | --no-wayland]
                   [--piper-model-config PIPER_MODEL_CONFIG]
                   [--debug | --no-debug]
                   [--ignore_chars [IGNORE_CHARS ...]]
+                  [--log-level {DEBUG,INFO,WARNING,ERROR,CRITICAL}]
 
 options:
   -h, --help            show this help message and exit
@@ -113,4 +114,6 @@ options:
   --debug, --no-debug   Enable flask debug mode (developmental purposes)
   --ignore_chars [IGNORE_CHARS ...]
                         List of characters to ignore
+  --log-level {DEBUG,INFO,WARNING,ERROR,CRITICAL}
+                        Set the logging level
 ```
