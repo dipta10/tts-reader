@@ -113,6 +113,10 @@ class App:
 
         for char in self.parsed.ignore_chars:
             text = text.replace(char, "")
+
+        if self.parsed.ignore_newline:
+            text = text.replace("\n", " ").replace("\r", " ")
+
         text = unidecode(text.strip()).replace("‐\n", "").replace("‐ ", "")
         if len(text) == 0:
             s = "Skipped processing empty text"
@@ -252,6 +256,12 @@ if __name__ == "__main__":
         default="INFO",
         choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
         help="Set the logging level",
+    )
+
+    parser.add_argument(
+        "--ignore_newline",
+        action="store_true",
+        help="Ignore newline characters",
     )
 
     parsed = parser.parse_args()
