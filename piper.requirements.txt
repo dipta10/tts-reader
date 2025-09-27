@@ -1,0 +1,4 @@
+numpy==1.26.4
+piper-phonemize-fix==1.2.1
+onnxruntime-gpu==1.21.1
+piper-tts==1.2.0

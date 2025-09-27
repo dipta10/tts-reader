@@ -8,6 +8,9 @@ import subprocess
 import sys
 import threading
 import time
+import platform
+import tempfile
+import os
 from locked import Locked
 
 logger = logging.getLogger(__name__)
@@ -27,6 +30,7 @@ class Piper(TTS):
         self.play_process = Locked(None)
         self.ffmpeg_process = Locked(None)
 
+        self.is_windows = platform.system() == "Windows"
         self.ffplay_path = shutil.which("ffplay")
 
         self.piper_path = shutil.which("piper-tts")
@@ -60,45 +64,95 @@ class Piper(TTS):
                 continue
 
             try:
-                ffmpeg_proc = subprocess.Popen(
-                    [
-                        "ffmpeg",
-                        "-f", "s16le",
-                        "-ar", str(self.parsed.piper_rate),
-                        "-ac", "1",
-                        "-i", "-",
-                        "-af", f"atempo={self.parsed.speed},volume={self.parsed.volume}",
-                        "-f", "s16le",
-                        "-ar", str(self.parsed.piper_rate),
-                        "-ac", "1",
-                        "-",
-                    ],
-                    stdin=subprocess.PIPE,
-                    stdout=subprocess.PIPE,
-                )
+                if self.is_windows:
+                    # On Windows, use a temporary file approach for more reliable playback
+                    # First check if we have audio data
+                    if len(audio) == 0:
+                        logger.warning("No audio data to play")
+                        self.play_queue.task_done()
+                        continue
 
-                aplay_proc = subprocess.Popen(
-                    ["aplay", "-f", "S16_LE", "-c", "1", "-r", str(self.parsed.piper_rate)],
-                    stdin=ffmpeg_proc.stdout,
-                    stdout=subprocess.PIPE,
-                )
-                self.ffmpeg_process.set(ffmpeg_proc)
-                self.play_process.set(aplay_proc)
+                    # Write audio to a temporary file
+                    with tempfile.NamedTemporaryFile(suffix='.raw', delete=False) as temp_file:
+                        temp_file.write(audio)
+                        temp_filename = temp_file.name
 
-                try:
-                    ffmpeg_proc.stdin.write(audio)
-                except BrokenPipeError as e:
-                    logger.error("ffmpeg stdin closed (BrokenPipeError), likely due to reset/termination.", exc_info=True)
-                except Exception as e:
-                    logging.error("Error writing to ffmpeg stdin: %s", repr(e), exc_info=True)
-                finally:
                     try:
-                        ffmpeg_proc.stdin.close()
-                    except Exception as e:
-                        logger.error("Error closing ffmpeg stdin: %s", repr(e), exc_info=True)
+                        ffplay_cmd = [
+                            "ffplay",
+                            "-f", "s16le",
+                            "-ar", str(self.parsed.piper_rate),
+                            temp_filename,  # Remove channel specification, let ffplay auto-detect
+                            "-af", f"atempo={self.parsed.speed},volume={self.parsed.volume * 3}",  # Boost volume significantly
+                            "-nodisp",  # No video display
+                            "-autoexit",  # Exit when playback finishes
+                            "-loglevel", "info"  # Show more info for debugging
+                        ]
+                        logger.debug(f"Running ffplay command: {' '.join(ffplay_cmd)}")
+                        logger.debug(f"Temp file size: {os.path.getsize(temp_filename)} bytes")
 
-                aplay_proc.wait()
-                ffmpeg_proc.wait()
+                        play_proc = subprocess.Popen(
+                            ffplay_cmd,
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE,
+                        )
+                        self.play_process.set(play_proc)
+                        stdout, stderr = play_proc.communicate()
+
+                        if play_proc.returncode != 0:
+                            logger.error(f"ffplay failed with return code {play_proc.returncode}")
+                            logger.error(f"ffplay stderr: {stderr.decode('utf-8', errors='ignore')}")
+                        else:
+                            logger.debug("ffplay completed successfully")
+                            if stderr:
+                                logger.debug(f"ffplay stderr: {stderr.decode('utf-8', errors='ignore')}")
+                    finally:
+                        # Clean up temporary file
+                        try:
+                            os.unlink(temp_filename)
+                        except Exception as e:
+                            logger.error("Error deleting temporary file: %s", repr(e))
+                else:
+                    # On Linux, use ffmpeg + aplay pipeline
+                    ffmpeg_proc = subprocess.Popen(
+                        [
+                            "ffmpeg",
+                            "-f", "s16le",
+                            "-ar", str(self.parsed.piper_rate),
+                            "-ac", "1",
+                            "-i", "-",
+                            "-af", f"atempo={self.parsed.speed},volume={self.parsed.volume}",
+                            "-f", "s16le",
+                            "-ar", str(self.parsed.piper_rate),
+                            "-ac", "1",
+                            "-",
+                        ],
+                        stdin=subprocess.PIPE,
+                        stdout=subprocess.PIPE,
+                    )
+
+                    aplay_proc = subprocess.Popen(
+                        ["aplay", "-f", "S16_LE", "-c", "1", "-r", str(self.parsed.piper_rate)],
+                        stdin=ffmpeg_proc.stdout,
+                        stdout=subprocess.PIPE,
+                    )
+                    self.ffmpeg_process.set(ffmpeg_proc)
+                    self.play_process.set(aplay_proc)
+
+                    try:
+                        ffmpeg_proc.stdin.write(audio)
+                    except BrokenPipeError as e:
+                        logger.error("ffmpeg stdin closed (BrokenPipeError), likely due to reset/termination.", exc_info=True)
+                    except Exception as e:
+                        logger.error("Error writing to ffmpeg stdin: %s", repr(e), exc_info=True)
+                    finally:
+                        try:
+                            ffmpeg_proc.stdin.close()
+                        except Exception as e:
+                            logger.error("Error closing ffmpeg stdin: %s", repr(e), exc_info=True)
+
+                    aplay_proc.wait()
+                    ffmpeg_proc.wait()
             except Exception as e:
                 logger.error("Error while playing audio: %s", repr(e), exc_info=True)
             finally:
@@ -135,6 +189,7 @@ class Piper(TTS):
                     )
                 )
                 out, _ = self.gen_process.get().communicate(input=text.encode())
+                logger.debug(f"Generated audio data: {len(out)} bytes for text: '{text[:50]}...'")
             finally:
                 self.gen_process.set(None)
                 self.gen_queue.task_done()
@@ -143,6 +198,8 @@ class Piper(TTS):
                 self.get_queue.put(b"" if len(out) == 0 else out)
             elif len(out) > 0:
                 self.play_queue.put(out)
+            else:
+                logger.warning(f"No audio generated for text: '{text[:50]}...'")
 
     def speak(self, text, getaudio):
         tokens = [text]
@@ -180,12 +237,14 @@ class Piper(TTS):
         self.reset_issued.set(False)
         self.paused = False
         with self.play_process.lock:
-            if self.play_process.data is not None:
+            if self.play_process.data is not None and not self.is_windows:
+                # Signal handling only works on Unix-like systems
                 self.play_process.data.send_signal(signal.SIGCONT)
 
     def pause(self):
         with self.play_process.lock:
-            if self.play_process.data is not None:
+            if self.play_process.data is not None and not self.is_windows:
+                # Signal handling only works on Unix-like systems
                 self.play_process.data.send_signal(signal.SIGSTOP)
                 self.paused = True
 
@@ -225,12 +284,16 @@ class Piper(TTS):
         with self.play_process.lock:
             if self.play_process.data is not None:
                 self.play_process.data.terminate()
-                self.play_process.data.send_signal(signal.SIGKILL)
+                if not self.is_windows:
+                    # SIGKILL only works on Unix-like systems
+                    self.play_process.data.send_signal(signal.SIGKILL)
 
         with self.ffmpeg_process.lock:
             if self.ffmpeg_process.data is not None:
                 self.ffmpeg_process.data.terminate()
-                self.ffmpeg_process.data.send_signal(signal.SIGKILL)
+                if not self.is_windows:
+                    # SIGKILL only works on Unix-like systems
+                    self.ffmpeg_process.data.send_signal(signal.SIGKILL)
 
     def stop_gen_process(self):
         with self.gen_process.lock:

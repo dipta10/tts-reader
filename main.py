@@ -9,6 +9,7 @@ import shutil
 import time
 import datetime
 import subprocess
+import platform
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -29,7 +30,8 @@ class App:
         self.parsed.speed = max(0.0, min(self.parsed.speed, 10.0))
 
         self.begin_time = time.time()
-        self.notifier = DesktopNotifier()
+        # self.notifier = DesktopNotifier()
+        self.notifier = None
 
         self.flask = Flask("tts-reader")
         self.flask.add_url_rule(
@@ -44,14 +46,26 @@ class App:
         self.flask.add_url_rule("/speed/<float:data>", "speed", view_func=self.speed)
         self.flask.add_url_rule("/status", "status", view_func=self.status)
 
-        self.wlpaste_path = shutil.which("wl-paste")
-        self.xclip_path = shutil.which("xclip")
-        if self.parsed.wayland is True:
-            if self.wlpaste_path is None:
-                raise Exception("Couldn't find the wl-paste binary")
+        # Initialize clipboard tools based on platform
+        self.is_windows = platform.system() == "Windows"
+
+        if not self.is_windows:
+            self.wlpaste_path = shutil.which("wl-paste")
+            self.xclip_path = shutil.which("xclip")
+
+            if self.parsed.wayland is True:
+                if self.wlpaste_path is None:
+                    raise Exception("Couldn't find the wl-paste binary")
+            else:
+                if self.xclip_path is None:
+                    raise Exception("Couldn't find the xclip binary")
         else:
-            if self.xclip_path is None:
-                raise Exception("Couldn't find the xclip binary")
+            # On Windows, we'll use pyperclip for clipboard access
+            try:
+                import pyperclip
+                self.pyperclip = pyperclip
+            except ImportError:
+                logger.warning("pyperclip not available. GET requests for clipboard reading will not work on Windows.")
 
         self.tts = Speechd(self.parsed) if self.parsed.speechd else Piper(self.parsed)
         if not self.tts.inited:
@@ -86,27 +100,43 @@ class App:
 
         else:
             try:
-                out = subprocess.run(
-                    [self.wlpaste_path, "-p"]
-                    if self.parsed.wayland
-                    else [self.xclip_path, "-o", "-selection primary"],
-                    check=True,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                ).stdout
-
-                try:
+                if self.is_windows:
+                    # Use pyperclip on Windows
+                    if hasattr(self, 'pyperclip'):
+                        text = self.pyperclip.paste()
+                        if text is None:
+                            text = ""
+                    else:
+                        s = "pyperclip not available. Cannot read clipboard on Windows."
+                        logger.error(s)
+                        self.notify(s)
+                        return s
+                else:
+                    # Use Linux clipboard tools
+                    out = subprocess.run(
+                        [self.wlpaste_path, "-p"]
+                        if self.parsed.wayland
+                        else [self.xclip_path, "-o", "-selection primary"],
+                        check=True,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                    ).stdout
                     text = out.decode("utf-8")
-                except UnicodeError as e:
-                    s = "Failed to decode the selection clipboard data as UTF-8"
-                    logger.error("%s: %s", s, repr(e))
-                    self.notify(s)
-                    return s
 
                 num_chars = len(text)
 
             except subprocess.CalledProcessError as e:
                 s = "Failed to get the clipboard contents. Maybe the selection clipboard is empty?"
+                logger.error("%s: %s", s, repr(e))
+                self.notify(s)
+                return s
+            except UnicodeError as e:
+                s = "Failed to decode the selection clipboard data as UTF-8"
+                logger.error("%s: %s", s, repr(e))
+                self.notify(s)
+                return s
+            except Exception as e:
+                s = "Failed to get the clipboard contents"
                 logger.error("%s: %s", s, repr(e))
                 self.notify(s)
                 return s
@@ -179,7 +209,9 @@ class App:
         )
 
     def notify(self, msg):
-        self.notifier.send_sync(title="TTS Reader", message=msg, timeout=2)
+        # right now skipping it for windows
+        pass
+        # self.notifier.send_sync(title="TTS Reader", message=msg, timeout=2)
 
 
 if __name__ == "__main__":
