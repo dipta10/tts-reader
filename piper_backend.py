@@ -72,9 +72,13 @@ class Piper(TTS):
                         self.play_queue.task_done()
                         continue
 
-                    # Write audio to a temporary file
+                    # Write audio to a temporary file with padding to prevent cutoff
                     with tempfile.NamedTemporaryFile(suffix='.raw', delete=False) as temp_file:
                         temp_file.write(audio)
+                        # Add 500ms of silence at the end to prevent cutoff
+                        silence_samples = int(self.parsed.piper_rate * 0.5)  # 500ms of silence
+                        silence_bytes = b'\x00\x00' * silence_samples  # 2 bytes per sample for s16le
+                        temp_file.write(silence_bytes)
                         temp_filename = temp_file.name
 
                     try:
@@ -83,10 +87,10 @@ class Piper(TTS):
                             "-f", "s16le",
                             "-ar", str(self.parsed.piper_rate),
                             temp_filename,  # Remove channel specification, let ffplay auto-detect
-                            "-af", f"atempo={self.parsed.speed},volume={self.parsed.volume * 3}",  # Boost volume significantly
+                            "-af", f"atempo={self.parsed.speed},volume={self.parsed.volume}",  # Normal volume
                             "-nodisp",  # No video display
                             "-autoexit",  # Exit when playback finishes
-                            "-loglevel", "info"  # Show more info for debugging
+                            "-loglevel", "error"  # Only show errors to reduce noise
                         ]
                         logger.debug(f"Running ffplay command: {' '.join(ffplay_cmd)}")
                         logger.debug(f"Temp file size: {os.path.getsize(temp_filename)} bytes")

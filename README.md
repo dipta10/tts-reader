@@ -13,7 +13,9 @@ Select and read aloud text from anywhere 🔊
 
 ### Working
 
-1. Install piper in your $PATH if using the original C++ variant, or `pip install piper-tts` if using the Python wrapper. If using Python, make sure to use **Python v3.10.12** because of this [issue](https://github.com/rhasspy/piper/issues/509).
+1. Install piper in your $PATH if using the original C++ variant, or `pip install piper-tts` if using the Python wrapper. 
+   - If using Python, either make sure to use **Python v3.10.12** because of this [issue](https://github.com/rhasspy/piper/issues/509).
+   - or use this command to install the piper dependencies: `pip install --no-deps -r piper.requirements.txt`
 2. Download the models and their respective configurations in a directory. See [here](https://github.com/rhasspy/piper/blob/master/VOICES.md)
 3. Create a virtual environment, install requirements and run:
    ```bash
@@ -62,13 +64,33 @@ Select and read aloud text from anywhere 🔊
 
 ### Let's set keybinds
 
-For practical usage, you can set keybindings in your DE or window manager. Say, if you're running sway, add the following to your config `~/.config/sway/config`.
+For practical usage, you can set keybindings in your DE or window manager.
+
+#### Linux (Sway)
+If you're running sway, add the following to your config `~/.config/sway/config`:
 
 ```shell
 bindsym $mod+t exec "curl http://localhost:5000/read"
 bindsym $mod+shift+t exec "curl http://localhost:5000/reset"
 bindsym Shift+XF86AudioPlay exec "curl http://localhost:5000/toggle"
 bindsym Shift+XF86AudioNext exec "curl http://localhost:5000/skip"
+```
+
+#### Windows (AutoHotkey)
+If you're using Windows, you can use [AutoHotkey](https://www.autohotkey.com/) to set up keybinds. Create an `.ahk` script with:
+
+```autohotkey
+; Alt+T to read selected text from clipboard
+!t::
+	Send ^c
+	Sleep 50
+    Run, curl.exe http://localhost:5012/read, , Hide
+return
+
+; Alt+Shift+T to stop/reset reading
+!+t::
+    Run, curl.exe http://localhost:5012/reset, , Hide
+return
 ```
 
 ### Available options
