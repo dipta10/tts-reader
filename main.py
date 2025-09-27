@@ -1,15 +1,14 @@
-from desktop_notifier import DesktopNotifier
 from flask import Flask, request
 from unidecode import unidecode
 from piper_backend import Piper
 from speechd_backend import Speechd
 import argparse
 import logging
-import shutil
 import time
 import datetime
 import subprocess
 import platform
+from clipboard_service import build_clipboard
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -46,26 +45,9 @@ class App:
         self.flask.add_url_rule("/speed/<float:data>", "speed", view_func=self.speed)
         self.flask.add_url_rule("/status", "status", view_func=self.status)
 
-        # Initialize clipboard tools based on platform
-        self.is_windows = platform.system() == "Windows"
-
-        if not self.is_windows:
-            self.wlpaste_path = shutil.which("wl-paste")
-            self.xclip_path = shutil.which("xclip")
-
-            if self.parsed.wayland is True:
-                if self.wlpaste_path is None:
-                    raise Exception("Couldn't find the wl-paste binary")
-            else:
-                if self.xclip_path is None:
-                    raise Exception("Couldn't find the xclip binary")
-        else:
-            # On Windows, we'll use pyperclip for clipboard access
-            try:
-                import pyperclip
-                self.pyperclip = pyperclip
-            except ImportError:
-                logger.warning("pyperclip not available. GET requests for clipboard reading will not work on Windows.")
+        self.clipboard = build_clipboard(self.parsed)
+        if platform.system() == "Windows" and self.clipboard is None:
+            logger.warning("pyperclip not available. GET requests for clipboard reading will not work on Windows.")
 
         self.tts = Speechd(self.parsed) if self.parsed.speechd else Piper(self.parsed)
         if not self.tts.inited:
@@ -100,29 +82,12 @@ class App:
 
         else:
             try:
-                if self.is_windows:
-                    # Use pyperclip on Windows
-                    if hasattr(self, 'pyperclip'):
-                        text = self.pyperclip.paste()
-                        if text is None:
-                            text = ""
-                    else:
-                        s = "pyperclip not available. Cannot read clipboard on Windows."
-                        logger.error(s)
-                        self.notify(s)
-                        return s
-                else:
-                    # Use Linux clipboard tools
-                    out = subprocess.run(
-                        [self.wlpaste_path, "-p"]
-                        if self.parsed.wayland
-                        else [self.xclip_path, "-o", "-selection primary"],
-                        check=True,
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.PIPE,
-                    ).stdout
-                    text = out.decode("utf-8")
-
+                if self.clipboard is None:
+                    s = "Clipboard not available. Cannot read clipboard on this platform."
+                    logger.error(s)
+                    self.notify(s)
+                    return s
+                text = self.clipboard.read_text() or ""
                 num_chars = len(text)
 
             except subprocess.CalledProcessError as e:
