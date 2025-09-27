@@ -12,6 +12,7 @@ import platform
 import tempfile
 import os
 from locked import Locked
+from audio_playback import FFplayAudio, AudioPlayback, PlaybackHandle
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +33,10 @@ class Piper(TTS):
 
         self.is_windows = platform.system() == "Windows"
         self.ffplay_path = shutil.which("ffplay")
+
+        # Choose audio playback service (Windows first). Linux path kept inline for now.
+        self.player = FFplayAudio() if self.is_windows else None
+        self.play_handle = Locked(None)
 
         self.piper_path = shutil.which("piper-tts")
         if self.piper_path is None and not self.parsed.piper_python:
@@ -65,57 +70,38 @@ class Piper(TTS):
 
             try:
                 if self.is_windows:
-                    # On Windows, use a temporary file approach for more reliable playback
-                    # First check if we have audio data
+                    # Windows: delegate to AudioPlayback service
                     if len(audio) == 0:
                         logger.warning("No audio data to play")
                         self.play_queue.task_done()
                         continue
-
-                    # Write audio to a temporary file with padding to prevent cutoff
-                    with tempfile.NamedTemporaryFile(suffix='.raw', delete=False) as temp_file:
-                        temp_file.write(audio)
-                        # Add 500ms of silence at the end to prevent cutoff
-                        silence_samples = int(self.parsed.piper_rate * 0.5)  # 500ms of silence
-                        silence_bytes = b'\x00\x00' * silence_samples  # 2 bytes per sample for s16le
-                        temp_file.write(silence_bytes)
-                        temp_filename = temp_file.name
-
                     try:
-                        ffplay_cmd = [
-                            "ffplay",
-                            "-f", "s16le",
-                            "-ar", str(self.parsed.piper_rate),
-                            temp_filename,  # Remove channel specification, let ffplay auto-detect
-                            "-af", f"atempo={self.parsed.speed},volume={self.parsed.volume}",  # Normal volume
-                            "-nodisp",  # No video display
-                            "-autoexit",  # Exit when playback finishes
-                            "-loglevel", "error"  # Only show errors to reduce noise
-                        ]
-                        logger.debug(f"Running ffplay command: {' '.join(ffplay_cmd)}")
-                        logger.debug(f"Temp file size: {os.path.getsize(temp_filename)} bytes")
-
-                        play_proc = subprocess.Popen(
-                            ffplay_cmd,
-                            stdout=subprocess.PIPE,
-                            stderr=subprocess.PIPE,
+                        handle = self.player.play(
+                            audio,
+                            rate=self.parsed.piper_rate,
+                            speed=self.parsed.speed,
+                            volume=self.parsed.volume,
                         )
-                        self.play_process.set(play_proc)
-                        stdout, stderr = play_proc.communicate()
-
-                        if play_proc.returncode != 0:
-                            logger.error(f"ffplay failed with return code {play_proc.returncode}")
-                            logger.error(f"ffplay stderr: {stderr.decode('utf-8', errors='ignore')}")
+                        self.play_handle.set(handle)
+                        # Poll so reset() can interrupt promptly
+                        while handle.is_running() and not self.reset_issued.get():
+                            time.sleep(0.05)
+                        if self.reset_issued.get():
+                            try:
+                                handle.terminate()
+                                # best-effort wait to reap process
+                                try:
+                                    handle.wait()
+                                except Exception:
+                                    pass
+                            except Exception:
+                                pass
                         else:
-                            logger.debug("ffplay completed successfully")
-                            if stderr:
-                                logger.debug(f"ffplay stderr: {stderr.decode('utf-8', errors='ignore')}")
+                            rc = handle.wait()
+                            if rc != 0:
+                                logger.error(f"Audio playback failed with return code {rc}")
                     finally:
-                        # Clean up temporary file
-                        try:
-                            os.unlink(temp_filename)
-                        except Exception as e:
-                            logger.error("Error deleting temporary file: %s", repr(e))
+                        self.play_handle.set(None)
                 else:
                     # On Linux, use ffmpeg + aplay pipeline
                     ffmpeg_proc = subprocess.Popen(
@@ -260,6 +246,16 @@ class Piper(TTS):
 
     def skip(self):
         self.play()
+        # Prefer handle termination (Windows path)
+        with self.play_handle.lock:
+            if self.play_handle.data is not None:
+                try:
+                    self.play_handle.data.terminate()
+                except Exception:
+                    pass
+                finally:
+                    self.play_handle.set(None)
+        # Fallback to raw process (Linux path)
         with self.play_process.lock:
             if self.play_process.data is not None:
                 self.play_process.data.terminate()
@@ -285,6 +281,17 @@ class Piper(TTS):
             self.get_queue.task_done()
 
     def stop_play_process(self):
+        # First try via AudioPlayback handle (Windows path)
+        with self.play_handle.lock:
+            if self.play_handle.data is not None:
+                try:
+                    self.play_handle.data.terminate()
+                except Exception:
+                    pass
+                finally:
+                    self.play_handle.set(None)
+
+        # Fallback to raw processes (primarily Linux path)
         with self.play_process.lock:
             if self.play_process.data is not None:
                 self.play_process.data.terminate()
