@@ -9,6 +9,8 @@ import datetime
 import subprocess
 import platform
 from services.clipboard import build_clipboard
+from services.reader import DefaultReaderController
+
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -52,25 +54,13 @@ class App:
         self.tts = Speechd(self.parsed) if self.parsed.speechd else Piper(self.parsed)
         if not self.tts.inited:
             raise Exception("Failed to initialize the TTS backend")
+        # Application-level controller
+        self.controller = DefaultReaderController(parsed=self.parsed, tts=self.tts, clipboard=self.clipboard)
 
     def read(self):
-        num_chars = 0
-
         getaudio = request.args.get("getaudio", None) is not None
-
         if request.method == "POST":
-            if len(request.data) > 0:
-                try:
-                    text = request.data.decode("utf-8")
-                except UnicodeError as e:
-                    s = "Failed to decode the POSTed data as UTF-8"
-                    logger.error("%s: %s", s, repr(e))
-                    self.notify(s)
-                    return s
-
-                num_chars = len(text)
-
-            else:
+            if not request.data:
                 s = "Failed to get the POSTed data"
                 logger.error(
                     "%s: Empty post request maybe because the content type header (%s) is wrong",
@@ -79,89 +69,46 @@ class App:
                 )
                 self.notify(s)
                 return s
-
-        else:
             try:
-                if self.clipboard is None:
-                    s = "Clipboard not available. Cannot read clipboard on this platform."
-                    logger.error(s)
-                    self.notify(s)
-                    return s
-                text = self.clipboard.read_text() or ""
-                num_chars = len(text)
-
-            except subprocess.CalledProcessError as e:
-                s = "Failed to get the clipboard contents. Maybe the selection clipboard is empty?"
-                logger.error("%s: %s", s, repr(e))
-                self.notify(s)
-                return s
+                text = request.data.decode("utf-8")
             except UnicodeError as e:
-                s = "Failed to decode the selection clipboard data as UTF-8"
+                s = "Failed to decode the POSTed data as UTF-8"
                 logger.error("%s: %s", s, repr(e))
                 self.notify(s)
                 return s
-            except Exception as e:
-                s = "Failed to get the clipboard contents"
-                logger.error("%s: %s", s, repr(e))
-                self.notify(s)
-                return s
-
-        for char in self.parsed.ignore_chars:
-            text = text.replace(char, "")
-
-        if self.parsed.ignore_newline:
-            text = text.replace("\n", " ").replace("\r", " ")
-
-        text = unidecode(text.strip()).replace("‐\n", "").replace("‐ ", "")
-        if len(text) == 0:
-            s = "Skipped processing empty text"
-            self.notify(s)
-            return s
-
-        s = f"Queued text of {num_chars} characters for the TTS"
-        self.notify(s)
-
-        audio = self.tts.speak(text, getaudio)
-
-        return audio if getaudio else s
+            return self.controller.read_text(text, getaudio)
+        else:
+            return self.controller.read_clipboard(getaudio)
 
     def status(self):
-        return {
-            "self": {
-                "uptime()": self.uptime(),
-                "parsed": self.parsed.__dict__,
-            },
-            "self.tts": self.tts.status(),
-        }
+        return self.controller.status()
 
     def toggle(self):
-        self.tts.toggle()
+        self.controller.toggle()
         return ""
 
     def play(self):
-        self.tts.play()
+        self.controller.play()
         return ""
 
     def pause(self):
-        self.tts.pause()
+        self.controller.pause()
         return ""
 
     def reset(self):
-        self.tts.reset()
+        self.controller.reset()
         return ""
 
     def skip(self):
-        self.tts.skip()
+        self.controller.skip()
         return ""
 
     def speed(self, data):
-        data = max(0.0, min(data, 10.0))
-        self.parsed.speed = data
+        self.controller.set_speed(max(0.0, min(data, 10.0)))
         return ""
 
     def volume(self, data):
-        data = max(0.0, min(data, 1.0))
-        self.parsed.volume = data
+        self.controller.set_volume(max(0.0, min(data, 1.0)))
         return ""
 
     def uptime(self):
@@ -241,9 +188,9 @@ if __name__ == "__main__":
         help="Enable flask debug mode (developmental purposes)",
     )
     parser.add_argument(
-        '--ignore_chars', 
-        nargs='*', 
-        default=[], 
+        '--ignore_chars',
+        nargs='*',
+        default=[],
         help='List of characters to ignore'
     )
 
