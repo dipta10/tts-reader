@@ -12,7 +12,7 @@ import platform
 import tempfile
 import os
 from locked import Locked
-from audio_playback import FFplayAudio, AudioPlayback, PlaybackHandle
+from services.audio import FFplayAudio, AudioPlayback, PlaybackHandle
 
 logger = logging.getLogger(__name__)
 

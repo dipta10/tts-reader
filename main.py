@@ -8,7 +8,7 @@ import time
 import datetime
 import subprocess
 import platform
-from clipboard_service import build_clipboard
+from services.clipboard import build_clipboard
 
 logging.basicConfig(
     level=logging.DEBUG,
