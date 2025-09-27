@@ -9,11 +9,12 @@ from unidecode import unidecode
 
 from services.clipboard import Clipboard
 from tts import TTS
+from .ports import ReaderController
 
 logger = logging.getLogger(__name__)
 
 
-class DefaultReaderController:
+class DefaultReaderController(ReaderController):
     """Application-level controller orchestrating clipboard, sanitization, and TTS.
 
     Keeps HTTP-independent logic here; web layer provides only decoded text and flags.
