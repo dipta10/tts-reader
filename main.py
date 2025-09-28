@@ -7,6 +7,8 @@ from speechd_backend import Speechd
 from services.clipboard import build_clipboard
 from services.reader import DefaultReaderController
 from web.app import create_app
+from services.notify import build_notifier
+
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -112,9 +114,12 @@ if __name__ == "__main__":
         )
 
     tts = Speechd(parsed) if parsed.speechd else Piper(parsed)
+
+    notifier = build_notifier()
+
     if not tts.inited:
         raise SystemExit("Failed to initialize the TTS backend")
 
-    controller = DefaultReaderController(parsed=parsed, tts=tts, clipboard=clipboard)
+    controller = DefaultReaderController(parsed=parsed, tts=tts, clipboard=clipboard, notifier=notifier)
     app = create_app(controller)
     app.run(host=parsed.ip, port=parsed.port, debug=parsed.debug)

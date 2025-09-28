@@ -10,6 +10,8 @@ from unidecode import unidecode
 from services.clipboard import Clipboard
 from tts import TTS
 from .ports import ReaderController
+from services.notify import Notifier
+
 
 logger = logging.getLogger(__name__)
 
@@ -20,10 +22,11 @@ class DefaultReaderController(ReaderController):
     Keeps HTTP-independent logic here; web layer provides only decoded text and flags.
     """
 
-    def __init__(self, *, parsed, tts: TTS, clipboard: Optional[Clipboard]):
+    def __init__(self, *, parsed, tts: TTS, clipboard: Optional[Clipboard], notifier: Optional[Notifier] = None):
         self.parsed = parsed
         self.tts = tts
         self.clipboard = clipboard
+        self.notifier = notifier
         self.begin_time = time.time()
 
         # Clamp initial values defensively
@@ -72,24 +75,31 @@ class DefaultReaderController(ReaderController):
 
     def toggle(self) -> None:
         self.tts.toggle()
+        self._notify("Playback toggled")
 
     def play(self) -> None:
         self.tts.play()
+        self._notify("Playback resumed")
 
     def pause(self) -> None:
         self.tts.pause()
+        self._notify("Playback paused")
 
     def reset(self) -> None:
         self.tts.reset()
+        self._notify("Reset issued")
 
     def skip(self) -> None:
         self.tts.skip()
+        self._notify("Skipped current item")
 
     def set_speed(self, value: float) -> None:
         self.parsed.speed = max(0.0, min(value, 10.0))
+        self._notify(f"Speed set to {self.parsed.speed:.2f}x")
 
     def set_volume(self, value: float) -> None:
         self.parsed.volume = max(0.0, min(value, 1.0))
+        self._notify(f"Volume set to {self.parsed.volume:.2f}")
 
     # -----------------
     # Internal helpers
@@ -110,6 +120,9 @@ class DefaultReaderController(ReaderController):
         return str(datetime.timedelta(seconds=int(diff)))
 
     def _notify(self, msg: str) -> None:
-        # Placeholder for a notifier service; currently a no-op
-        pass
+        try:
+            if getattr(self, "notifier", None) is not None:
+                self.notifier.notify("TTS Reader", msg)
+        except Exception:
+            logger.debug("Notifier failed", exc_info=True)
 
