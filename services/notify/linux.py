@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from typing import Optional
 
 from .ports import Notifier
 
@@ -15,23 +16,23 @@ except Exception:  # pragma: no cover
 class LinuxNotifier(Notifier):
     def __init__(self, app_name: str = "tts-reader"):
         self._app_name = app_name
-        self._impl = None
+        self._notifier = None
         try:
             if DesktopNotifier is not None:
-                self._impl = DesktopNotifier(app_name=app_name)
+                self._notifier = DesktopNotifier(app_name=app_name)
             else:
                 logger.warning("desktop-notifier not available; notifications disabled")
         except Exception:
             logger.warning("Failed to initialize DesktopNotifier; notifications disabled", exc_info=True)
-            self._impl = None
+            self._notifier = None
 
-    def notify(self, title: str, message: str, *, subtitle: str | None = None) -> None:
-        if self._impl is None:
+    def notify(self, title: str, message: str, *, subtitle: Optional[str] = None) -> None:
+        if self._notifier is None:
             return
         try:
             # Use synchronous API to avoid dealing with event loops
-            self._impl.send_sync(title if title else self._app_name, message)
+            self._notifier.send_sync(title if title else self._app_name, message)
         except Exception:
             # Never let notifications break app flow
-            logger.debug("Notification send failed", exc_info=True)
+            logger.error("Notification send failed", exc_info=True)
 
