@@ -1,18 +1,14 @@
 from tts import TTS
-import importlib
 import logging
 import queue
 import shutil
 import signal
 import subprocess
-import sys
 import threading
 import time
 import platform
-import tempfile
-import os
 from locked import Locked
-from services.audio import FFplayAudio, AudioPlayback, PlaybackHandle
+from services.audio import FFplayAudio
 
 logger = logging.getLogger(__name__)
 
@@ -38,16 +34,30 @@ class Piper(TTS):
         self.player = FFplayAudio() if self.is_windows else None
         self.play_handle = Locked(None)
 
-        self.piper_path = shutil.which("piper-tts")
-        if self.piper_path is None and not self.parsed.piper_python:
-            logger.warning("The piper C++ executable was not found")
-
-        self.is_piper_python = self.piper_path is None or self.parsed.piper_python
-        if self.is_piper_python:
-            if importlib.util.find_spec("piper") is None:
-                logger.critical("The piper python module was not found")
-                self.inited = False
-                return
+        try:
+            # Use Piper Python API directly
+            from piper.voice import PiperVoice  # type: ignore
+        except Exception:
+            logger.critical("The piper python module was not found", exc_info=True)
+            self.inited = False
+            return
+        try:
+            self.piper_voice = PiperVoice.load(
+                self.parsed.piper_model,
+                config_path=self.parsed.piper_model_config,
+                use_cuda=getattr(self.parsed, "piper_cuda", False),
+            )
+            model_rate = getattr(self.piper_voice.config, "sample_rate", None)
+            if model_rate and getattr(self.parsed, "piper_rate", None) and self.parsed.piper_rate != model_rate:
+                logger.warning(
+                    "Configured piper_rate (%s) differs from model sample rate (%s); playback will use configured rate",
+                    self.parsed.piper_rate,
+                    model_rate,
+                )
+        except Exception:
+            logger.critical("Failed to initialize PiperVoice from Python API", exc_info=True)
+            self.inited = False
+            return
 
         self.gen_thread = threading.Thread(target=self.run_gen_thread, daemon=True)
         self.play_thread = threading.Thread(target=self.run_play_thread, daemon=True)
@@ -158,28 +168,22 @@ class Piper(TTS):
                 continue
 
             try:
-                prefix = [self.piper_path]
-                if self.is_piper_python:
-                    prefix = [sys.executable, "-m", "piper"]
-
-                self.gen_process.set(
-                    subprocess.Popen(
-                        prefix
-                        + [
-                            "--output_raw",
-                            "--sentence_silence",
-                            f"{self.parsed.piper_sentence_silence}",
-                            "--model",
-                            self.parsed.piper_model,
-                            "--config",
-                            self.parsed.piper_model_config,
-                        ],
-                        stdin=subprocess.PIPE,
-                        stdout=subprocess.PIPE,
-                    )
+                # Generate audio using Piper Python API (no subprocess)
+                out_bytes = bytearray()
+                try:
+                    for audio_bytes in self.piper_voice.synthesize_stream_raw(
+                        text,
+                        sentence_silence=self.parsed.piper_sentence_silence,
+                    ):
+                        if self.reset_issued.get():
+                            break
+                        out_bytes.extend(audio_bytes)
+                except Exception as e:
+                    logger.error("Piper Python synthesis failed: %s", repr(e), exc_info=True)
+                out = bytes(out_bytes)
+                logger.debug(
+                    f"Generated audio data: {len(out)} bytes for text: '{text[:50]}...'"
                 )
-                out, _ = self.gen_process.get().communicate(input=text.encode())
-                logger.debug(f"Generated audio data: {len(out)} bytes for text: '{text[:50]}...'")
             finally:
                 self.gen_process.set(None)
                 self.gen_queue.task_done()
