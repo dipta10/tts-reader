@@ -12,6 +12,10 @@ from services.audio import FFplayAudio
 
 logger = logging.getLogger(__name__)
 
+# Sentinels for streaming playback over the play_queue
+STREAM_START = object()
+STREAM_END = object()
+
 
 class Piper(TTS):
     def __init__(self, parsed):
@@ -73,86 +77,179 @@ class Piper(TTS):
                 time.sleep(0.5)
                 continue
 
-            audio = self.play_queue.get()
+            item = self.play_queue.get()
             if self.reset_issued.get():
                 self.play_queue.task_done()
                 continue
 
             try:
-                if self.is_windows:
-                    # Windows: delegate to AudioPlayback service
-                    if len(audio) == 0:
-                        logger.warning("No audio data to play")
-                        self.play_queue.task_done()
-                        continue
-                    try:
-                        handle = self.player.play(
-                            audio,
-                            rate=self.parsed.piper_rate,
-                            speed=self.parsed.speed,
-                            volume=self.parsed.volume,
-                        )
-                        self.play_handle.set(handle)
-                        # Poll so reset() can interrupt promptly
-                        while handle.is_running() and not self.reset_issued.get():
-                            time.sleep(0.05)
-                        if self.reset_issued.get():
-                            try:
-                                handle.terminate()
-                                # best-effort wait to reap process
+                if item is STREAM_START:
+                    # Start streaming session
+                    if self.is_windows:
+                        # Windows path: accumulate chunks and then play as one buffer (still reduces gen latency a bit)
+                        chunks = bytearray()
+                        # Gather chunks until end or reset
+                        while True:
+                            next_item = self.play_queue.get()
+                            if next_item is STREAM_END or self.reset_issued.get():
+                                self.play_queue.task_done()
+                                break
+                            if isinstance(next_item, (bytes, bytearray)):
+                                chunks.extend(next_item)
+                            self.play_queue.task_done()
+                        # If reset, drop accumulated audio silently
+                        if self.reset_issued.get() or len(chunks) == 0:
+                            continue
+                        # Delegate to AudioPlayback service as before
+                        try:
+                            handle = self.player.play(
+                                bytes(chunks),
+                                rate=self.parsed.piper_rate,
+                                speed=self.parsed.speed,
+                                volume=self.parsed.volume,
+                            )
+                            self.play_handle.set(handle)
+                            while handle.is_running() and not self.reset_issued.get():
+                                time.sleep(0.05)
+                            if self.reset_issued.get():
                                 try:
-                                    handle.wait()
+                                    handle.terminate()
+                                    try:
+                                        handle.wait()
+                                    except Exception:
+                                        pass
                                 except Exception:
                                     pass
-                            except Exception:
-                                pass
-                        else:
-                            rc = handle.wait()
-                            if rc != 0:
-                                logger.error(f"Audio playback failed with return code {rc}")
-                    finally:
-                        self.play_handle.set(None)
-                else:
-                    # On Linux, use ffmpeg + aplay pipeline
-                    ffmpeg_proc = subprocess.Popen(
-                        [
-                            "ffmpeg",
-                            "-f", "s16le",
-                            "-ar", str(self.parsed.piper_rate),
-                            "-ac", "1",
-                            "-i", "-",
-                            "-af", f"atempo={self.parsed.speed},volume={self.parsed.volume}",
-                            "-f", "s16le",
-                            "-ar", str(self.parsed.piper_rate),
-                            "-ac", "1",
-                            "-",
-                        ],
-                        stdin=subprocess.PIPE,
-                        stdout=subprocess.PIPE,
-                    )
+                            else:
+                                rc = handle.wait()
+                                if rc != 0:
+                                    logger.error(f"Audio playback failed with return code {rc}")
+                        finally:
+                            self.play_handle.set(None)
+                    else:
+                        # Linux path: stream into ffmpeg + aplay as chunks arrive
+                        ffmpeg_proc = subprocess.Popen(
+                            [
+                                "ffmpeg",
+                                "-f", "s16le",
+                                "-ar", str(self.parsed.piper_rate),
+                                "-ac", "1",
+                                "-i", "-",
+                                "-af", f"atempo={self.parsed.speed},volume={self.parsed.volume}",
+                                "-f", "s16le",
+                                "-ar", str(self.parsed.piper_rate),
+                                "-ac", "1",
+                                "-",
+                            ],
+                            stdin=subprocess.PIPE,
+                            stdout=subprocess.PIPE,
+                        )
+                        aplay_proc = subprocess.Popen(
+                            ["aplay", "-f", "S16_LE", "-c", "1", "-r", str(self.parsed.piper_rate)],
+                            stdin=ffmpeg_proc.stdout,
+                            stdout=subprocess.PIPE,
+                        )
+                        self.ffmpeg_process.set(ffmpeg_proc)
+                        self.play_process.set(aplay_proc)
 
-                    aplay_proc = subprocess.Popen(
-                        ["aplay", "-f", "S16_LE", "-c", "1", "-r", str(self.parsed.piper_rate)],
-                        stdin=ffmpeg_proc.stdout,
-                        stdout=subprocess.PIPE,
-                    )
-                    self.ffmpeg_process.set(ffmpeg_proc)
-                    self.play_process.set(aplay_proc)
-
-                    try:
-                        ffmpeg_proc.stdin.write(audio)
-                    except BrokenPipeError as e:
-                        logger.error("ffmpeg stdin closed (BrokenPipeError), likely due to reset/termination.", exc_info=True)
-                    except Exception as e:
-                        logger.error("Error writing to ffmpeg stdin: %s", repr(e), exc_info=True)
-                    finally:
                         try:
-                            ffmpeg_proc.stdin.close()
-                        except Exception as e:
-                            logger.error("Error closing ffmpeg stdin: %s", repr(e), exc_info=True)
+                            # Consume chunks until STREAM_END or reset
+                            while True:
+                                next_item = self.play_queue.get()
+                                if next_item is STREAM_END or self.reset_issued.get():
+                                    self.play_queue.task_done()
+                                    break
+                                if isinstance(next_item, (bytes, bytearray)):
+                                    try:
+                                        ffmpeg_proc.stdin.write(next_item)
+                                    except BrokenPipeError:
+                                        logger.error("ffmpeg stdin closed (BrokenPipeError), likely due to reset/termination.", exc_info=True)
+                                        break
+                                    except Exception as e:
+                                        logger.error("Error writing to ffmpeg stdin: %s", repr(e), exc_info=True)
+                                        break
+                                self.play_queue.task_done()
+                        finally:
+                            try:
+                                if ffmpeg_proc.stdin:
+                                    ffmpeg_proc.stdin.close()
+                            except Exception as e:
+                                logger.error("Error closing ffmpeg stdin: %s", repr(e), exc_info=True)
 
-                    aplay_proc.wait()
-                    ffmpeg_proc.wait()
+                            aplay_proc.wait()
+                            ffmpeg_proc.wait()
+                else:
+                    # Non-streaming single buffer (backward compatibility)
+                    audio = item
+                    if self.is_windows:
+                        if len(audio) == 0:
+                            logger.warning("No audio data to play")
+                            continue
+                        try:
+                            handle = self.player.play(
+                                audio,
+                                rate=self.parsed.piper_rate,
+                                speed=self.parsed.speed,
+                                volume=self.parsed.volume,
+                            )
+                            self.play_handle.set(handle)
+                            while handle.is_running() and not self.reset_issued.get():
+                                time.sleep(0.05)
+                            if self.reset_issued.get():
+                                try:
+                                    handle.terminate()
+                                    try:
+                                        handle.wait()
+                                    except Exception:
+                                        pass
+                                except Exception:
+                                    pass
+                            else:
+                                rc = handle.wait()
+                                if rc != 0:
+                                    logger.error(f"Audio playback failed with return code {rc}")
+                        finally:
+                            self.play_handle.set(None)
+                    else:
+                        ffmpeg_proc = subprocess.Popen(
+                            [
+                                "ffmpeg",
+                                "-f", "s16le",
+                                "-ar", str(self.parsed.piper_rate),
+                                "-ac", "1",
+                                "-i", "-",
+                                "-af", f"atempo={self.parsed.speed},volume={self.parsed.volume}",
+                                "-f", "s16le",
+                                "-ar", str(self.parsed.piper_rate),
+                                "-ac", "1",
+                                "-",
+                            ],
+                            stdin=subprocess.PIPE,
+                            stdout=subprocess.PIPE,
+                        )
+
+                        aplay_proc = subprocess.Popen(
+                            ["aplay", "-f", "S16_LE", "-c", "1", "-r", str(self.parsed.piper_rate)],
+                            stdin=ffmpeg_proc.stdout,
+                            stdout=subprocess.PIPE,
+                        )
+                        self.ffmpeg_process.set(ffmpeg_proc)
+                        self.play_process.set(aplay_proc)
+
+                        try:
+                            ffmpeg_proc.stdin.write(audio)
+                        except BrokenPipeError:
+                            logger.error("ffmpeg stdin closed (BrokenPipeError), likely due to reset/termination.", exc_info=True)
+                        except Exception as e:
+                            logger.error("Error writing to ffmpeg stdin: %s", repr(e), exc_info=True)
+                        finally:
+                            try:
+                                ffmpeg_proc.stdin.close()
+                            except Exception as e:
+                                logger.error("Error closing ffmpeg stdin: %s", repr(e), exc_info=True)
+
+                        aplay_proc.wait()
+                        ffmpeg_proc.wait()
             except Exception as e:
                 logger.error("Error while playing audio: %s", repr(e), exc_info=True)
             finally:
@@ -167,33 +264,55 @@ class Piper(TTS):
                 self.gen_queue.task_done()
                 continue
 
+            produced_any = False
             try:
-                # Generate audio using Piper Python API (no subprocess)
-                out_bytes = bytearray()
-                try:
-                    for audio_bytes in self.piper_voice.synthesize_stream_raw(
-                        text,
-                        sentence_silence=self.parsed.piper_sentence_silence,
-                    ):
-                        if self.reset_issued.get():
-                            break
-                        out_bytes.extend(audio_bytes)
-                except Exception as e:
-                    logger.error("Piper Python synthesis failed: %s", repr(e), exc_info=True)
-                out = bytes(out_bytes)
-                logger.debug(
-                    f"Generated audio data: {len(out)} bytes for text: '{text[:50]}...'"
-                )
+                if getaudio:
+                    # Accumulate for HTTP response
+                    out_bytes = bytearray()
+                    try:
+                        for audio_bytes in self.piper_voice.synthesize_stream_raw(
+                            text,
+                            sentence_silence=self.parsed.piper_sentence_silence,
+                        ):
+                            if self.reset_issued.get():
+                                break
+                            if audio_bytes:
+                                produced_any = True
+                                out_bytes.extend(audio_bytes)
+                    except Exception as e:
+                        logger.error("Piper Python synthesis failed: %s", repr(e), exc_info=True)
+                    out = bytes(out_bytes)
+                    logger.debug(
+                        f"Generated audio data: {len(out)} bytes for text: '{text[:50]}...'"
+                    )
+                else:
+                    # Stream directly to play thread in chunks
+                    try:
+                        self.play_queue.put(STREAM_START)
+                        for audio_bytes in self.piper_voice.synthesize_stream_raw(
+                            text,
+                            sentence_silence=self.parsed.piper_sentence_silence,
+                        ):
+                            if self.reset_issued.get():
+                                break
+                            if audio_bytes:
+                                produced_any = True
+                                self.play_queue.put(audio_bytes)
+                    except Exception as e:
+                        logger.error("Piper Python synthesis failed: %s", repr(e), exc_info=True)
+                    finally:
+                        # Always signal end-of-stream so player can close gracefully
+                        self.play_queue.put(STREAM_END)
+                        out = b""
             finally:
                 self.gen_process.set(None)
                 self.gen_queue.task_done()
 
             if getaudio:
                 self.get_queue.put(b"" if len(out) == 0 else out)
-            elif len(out) > 0:
-                self.play_queue.put(out)
             else:
-                logger.warning(f"No audio generated for text: '{text[:50]}...'")
+                if not produced_any:
+                    logger.warning(f"No audio generated for text: '{text[:50]}...'")
 
     def speak(self, text, getaudio):
         tokens = [text]

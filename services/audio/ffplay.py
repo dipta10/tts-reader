@@ -44,11 +44,9 @@ class FFplayAudio(AudioPlayback):
         self.ffplay_path = ffplay_path
 
     def play(self, pcm: bytes, *, rate: int, speed: float, volume: float) -> PlaybackHandle:
-        # Write PCM to temp file and append 500ms of silence to avoid tail cutoff
+        # Write PCM to temp file
         with tempfile.NamedTemporaryFile(suffix=".raw", delete=False) as f:
             f.write(pcm)
-            silence_bytes = b"\x00\x00" * int(rate * 0.5)  # 500ms of mono s16le
-            f.write(silence_bytes)
             temp_path = f.name
 
         cmd = [
