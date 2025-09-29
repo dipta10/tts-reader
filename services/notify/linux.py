@@ -30,8 +30,22 @@ class LinuxNotifier(Notifier):
         if self._notifier is None:
             return
         try:
-            # Use synchronous API to avoid dealing with event loops
-            self._notifier.send_sync(title if title else self._app_name, message)
+            # Prefer 2s display duration where supported by the platform/server.
+            # Different backends may use different kwarg names; try a few safely.
+            notif_title = title if title else self._app_name
+            for kwargs in (
+                {"timeout": 2},          # seconds (some backends)
+                {"timeout": 2.0},        # float seconds
+                {"expire_timeout": 2000} # milliseconds (libnotify semantics)
+            ):
+                try:
+                    self._notifier.send_sync(notif_title, message, **kwargs)
+                    return
+                except TypeError:
+                    # Backend doesn't accept this kwarg signature; try next.
+                    continue
+            # Fallback without explicit timeout
+            self._notifier.send_sync(notif_title, message)
         except Exception:
             # Never let notifications break app flow
             logger.error("Notification send failed", exc_info=True)
