@@ -1,10 +1,10 @@
 import argparse
 import logging
-import platform
 
 import uvicorn
 
 from config import AppConfig, PiperConfig, TextConfig
+from services.platform import Platform
 from services.tts import build_tts
 from services.clipboard import build_clipboard
 from services.reader import DefaultReaderController
@@ -132,7 +132,7 @@ if __name__ == "__main__":
     )
 
     clipboard = build_clipboard(use_wayland=parsed.wayland)
-    if platform.system() == "Windows" and clipboard is None:
+    if Platform.is_windows() and clipboard is None:
         logger.warning(
             "pyperclip not available. GET requests for clipboard reading will not work on Windows."
         )
