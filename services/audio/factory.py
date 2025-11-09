@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import logging
-import platform
 
+from services.platform import Platform
 from .ports import AudioPlayback
 from .ffplay import FFplayAudio
 from .aplay import AplayAudio
@@ -23,7 +23,7 @@ def build_audio_player() -> AudioPlayback:
         instead of AplayAudio. This factory is provided for future refactoring
         and consistency with other service factories.
     """
-    if platform.system() == "Windows":
+    if Platform.is_windows():
         logger.debug("Using FFplayAudio for Windows")
         return FFplayAudio()
 

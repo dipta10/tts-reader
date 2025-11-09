@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import logging
-import platform
 from typing import Optional
 
+from services.platform import Platform
 from .ports import Clipboard
 from .windows import WindowsClipboard
 from .linux import LinuxClipboard
@@ -23,8 +23,7 @@ def build_clipboard(use_wayland: bool = False) -> Optional[Clipboard]:
         - Windows: WindowsClipboard (requires pyperclip)
         - Linux: LinuxClipboard (requires wl-paste or xclip binaries)
     """
-    system = platform.system()
-    if system == "Windows":
+    if Platform.is_windows():
         try:
             import pyperclip  # type: ignore[import]
         except Exception:
