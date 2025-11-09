@@ -2,6 +2,8 @@ import argparse
 import logging
 import platform
 
+import uvicorn
+
 from piper_backend import Piper
 from speechd_backend import Speechd
 from services.clipboard import build_clipboard
@@ -72,7 +74,7 @@ if __name__ == "__main__":
         "--debug",
         default=False,
         action=argparse.BooleanOptionalAction,
-        help="Enable flask debug mode (developmental purposes)",
+        help="Enable debug mode (developmental purposes)",
     )
     parser.add_argument(
         '--ignore_chars',
@@ -122,4 +124,11 @@ if __name__ == "__main__":
 
     controller = DefaultReaderController(parsed=parsed, tts=tts, clipboard=clipboard, notifier=notifier)
     app = create_app(controller)
-    app.run(host=parsed.ip, port=parsed.port, debug=parsed.debug)
+
+    uvicorn.run(
+        app,
+        host=parsed.ip,
+        port=parsed.port,
+        log_level="debug" if parsed.debug else "info",
+        access_log=parsed.debug,
+    )
