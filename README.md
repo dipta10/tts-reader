@@ -2,69 +2,107 @@
 
 Select and read aloud text from anywhere 🔊
 
+## Quick Setup
+
+**Prerequisites:**
+- Python 3.9 or higher
+- `ffmpeg` and `aplay` (Linux) installed on your system
+
+Run the automated setup script:
+```bash
+chmod +x setup.sh
+./setup.sh
+```
+
+This script will:
+- Create a virtual environment
+- Install all Python dependencies (including Piper TTS)
+- Download a default voice model (en_US-hfc_male-medium)
+
+Then start the server:
+```bash
+source venv/bin/activate
+python main.py --port 5000 --piper-model models/en_US-hfc_male-medium.onnx --piper-model-config models/en_US-hfc_male-medium.onnx.json
+```
+
+## Manual Setup
+
+If you prefer to set up manually or need a different voice model, follow these steps (these are the same steps automated in `setup.sh`):
+
 ### Requirements
 
+- Python 3.9 or higher (Python 3.10.12+ recommended for Piper compatibility)
 - ffmpeg
-- aplay
-- wl-clipboard (Wayland only)
-- xclip (X11 only)
-- piper [C++](https://github.com/rhasspy/piper/releases), or [piper python](https://pypi.org/project/piper-tts/)
-- anything to send requests
+- aplay (Linux) / working audio output (Windows)
+- wl-clipboard (Wayland only) or xclip (X11 only)
 
-### Working
+### Steps
 
-1. Install piper in your $PATH if using the original C++ variant, or `pip install piper-tts` if using the Python wrapper. 
-   - If using Python, either make sure to use **Python v3.10.12** because of this [issue](https://github.com/rhasspy/piper/issues/509).
-   - or use this command to install the piper dependencies: `pip install --no-deps -r piper.requirements.txt`
-2. Download the models and their respective configurations in a directory. See [here](https://github.com/rhasspy/piper/blob/master/VOICES.md)
-3. Create a virtual environment, install requirements and run:
+1. Create a virtual environment with system-site-packages:
    ```bash
    python -m venv venv --system-site-packages
    source venv/bin/activate
+   ```
+
+2. Install dependencies:
+   ```bash
    pip install -r requirements.txt
+   pip install --no-deps -r piper.requirements.txt
+   ```
+
+   > **Note:** The `--no-deps` flag for piper.requirements.txt is needed due to [this compatibility issue](https://github.com/rhasspy/piper/issues/509).
+
+3. Download voice models from [Piper Voices](https://github.com/rhasspy/piper/blob/master/VOICES.md) and place them in a `models/` directory.
+
+4. Run the server:
+   ```bash
    python main.py --port 5000 --speed=1.0 --volume=.8 --piper-model yourmodel.onnx --piper-model-config yourmodel.onnx.json --wayland
    ```
-4. Select any text in any application 4. To read aloud:
+
+## Usage
+
+### Reading Text
+
+1. To read selected text from clipboard:
    ```bash
    curl http://localhost:5000/read
    ```
-5. To read aloud random text, send a POST request:
+2. To read custom text via POST request:
    ```bash
    echo Hope you are having a lovely day, sir. | curl -X POST -H 'Content-Type: application/octet-stream' --data-binary @- localhost:5000/read
    ```
-6. To just download the generated audio, instead of playing it:
+3. To download the generated audio instead of playing it:
    ```bash
    curl 'http://localhost:5000/read?getaudio'
    ```
-7. To interrupt the reading:
-   ```bash
-   curl http://localhost:5000/reset
-   ```
-8. To get basic runtime stats:
-   ```bash
-   curl http://localhost:5000/status
-   ```
-9. You can dynamically alter the speed and volume using:
-   ```bash
-   curl http://localhost:5000/speed/1.25
-   curl http://localhost:5000/volume/0.7
-   ```
-10. Pause, play, toggle and skip with:
-    ```bash
-    curl http://localhost:5000/pause
-    curl http://localhost:5000/play
-    curl http://localhost:5000/toggle
-    curl http://localhost:5000/skip
-    ```
-11. To ignore certain characters in the text:
-    ```bash
-    python main.py --ignore_chars '*' '-'
-    ```
-    This will remove all instances of these characters from the text before processing it. You can specify any characters you want to ignore by passing them as arguments after `ignore_chars`.
 
-### Let's set keybinds
+### Playback Control
 
-For practical usage, you can set keybindings in your DE or window manager.
+```bash
+curl http://localhost:5000/reset    # Stop and clear current reading
+curl http://localhost:5000/pause    # Pause playback
+curl http://localhost:5000/play     # Resume playback
+curl http://localhost:5000/toggle   # Toggle pause/play
+curl http://localhost:5000/skip     # Skip to next sentence
+curl http://localhost:5000/status   # Get playback status
+```
+
+### Adjusting Settings
+
+Dynamically change speed and volume:
+```bash
+curl http://localhost:5000/speed/1.25
+curl http://localhost:5000/volume/0.7
+```
+
+Ignore certain characters when reading (set at startup):
+```bash
+python main.py --ignore_chars '*' '-'
+```
+
+## Setting Up Keybindings
+
+For practical usage, you can set up keyboard shortcuts in your desktop environment or window manager:
 
 #### Linux (Sway)
 If you're running sway, add the following to your config `~/.config/sway/config`:
@@ -93,7 +131,7 @@ return
 return
 ```
 
-### Available options
+## Command-Line Options
 
 ```
 usage: tts-reader [-h] [--ip IP] [--port PORT] [--wayland | --no-wayland]
