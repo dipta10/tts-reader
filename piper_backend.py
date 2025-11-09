@@ -9,6 +9,7 @@ import time
 import platform
 from locked import Locked
 from services.audio import FFplayAudio
+from config import PiperConfig
 
 logger = logging.getLogger(__name__)
 
@@ -18,9 +19,9 @@ STREAM_END = object()
 
 
 class Piper(TTS):
-    def __init__(self, parsed):
+    def __init__(self, config: PiperConfig):
         super().__init__()
-        self.parsed = parsed
+        self.config = config
         self.paused = False
         self.reset_issued = Locked(False)
         self.play_queue = queue.Queue()
@@ -47,15 +48,15 @@ class Piper(TTS):
             return
         try:
             self.piper_voice = PiperVoice.load(
-                self.parsed.piper_model,
-                config_path=self.parsed.piper_model_config,
-                use_cuda=getattr(self.parsed, "piper_cuda", False),
+                self.config.model,
+                config_path=self.config.model_config,
+                use_cuda=False,  # CUDA support can be added to PiperConfig if needed
             )
             model_rate = getattr(self.piper_voice.config, "sample_rate", None)
-            if model_rate and getattr(self.parsed, "piper_rate", None) and self.parsed.piper_rate != model_rate:
+            if model_rate and self.config.rate and self.config.rate != model_rate:
                 logger.warning(
-                    "Configured piper_rate (%s) differs from model sample rate (%s); playback will use configured rate",
-                    self.parsed.piper_rate,
+                    "Configured rate (%s) differs from model sample rate (%s); playback will use configured rate",
+                    self.config.rate,
                     model_rate,
                 )
         except Exception:
@@ -104,9 +105,9 @@ class Piper(TTS):
                         try:
                             handle = self.player.play(
                                 bytes(chunks),
-                                rate=self.parsed.piper_rate,
-                                speed=self.parsed.speed,
-                                volume=self.parsed.volume,
+                                rate=self.config.rate,
+                                speed=self.config.speed,
+                                volume=self.config.volume,
                             )
                             self.play_handle.set(handle)
                             while handle.is_running() and not self.reset_issued.get():
@@ -132,12 +133,12 @@ class Piper(TTS):
                             [
                                 "ffmpeg",
                                 "-f", "s16le",
-                                "-ar", str(self.parsed.piper_rate),
+                                "-ar", str(self.config.rate),
                                 "-ac", "1",
                                 "-i", "-",
-                                "-af", f"atempo={self.parsed.speed},volume={self.parsed.volume}",
+                                "-af", f"atempo={self.config.speed},volume={self.config.volume}",
                                 "-f", "s16le",
-                                "-ar", str(self.parsed.piper_rate),
+                                "-ar", str(self.config.rate),
                                 "-ac", "1",
                                 "-",
                             ],
@@ -145,7 +146,7 @@ class Piper(TTS):
                             stdout=subprocess.PIPE,
                         )
                         aplay_proc = subprocess.Popen(
-                            ["aplay", "-f", "S16_LE", "-c", "1", "-r", str(self.parsed.piper_rate)],
+                            ["aplay", "-f", "S16_LE", "-c", "1", "-r", str(self.config.rate)],
                             stdin=ffmpeg_proc.stdout,
                             stdout=subprocess.PIPE,
                         )
@@ -188,9 +189,9 @@ class Piper(TTS):
                         try:
                             handle = self.player.play(
                                 audio,
-                                rate=self.parsed.piper_rate,
-                                speed=self.parsed.speed,
-                                volume=self.parsed.volume,
+                                rate=self.config.rate,
+                                speed=self.config.speed,
+                                volume=self.config.volume,
                             )
                             self.play_handle.set(handle)
                             while handle.is_running() and not self.reset_issued.get():
@@ -215,12 +216,12 @@ class Piper(TTS):
                             [
                                 "ffmpeg",
                                 "-f", "s16le",
-                                "-ar", str(self.parsed.piper_rate),
+                                "-ar", str(self.config.rate),
                                 "-ac", "1",
                                 "-i", "-",
-                                "-af", f"atempo={self.parsed.speed},volume={self.parsed.volume}",
+                                "-af", f"atempo={self.config.speed},volume={self.config.volume}",
                                 "-f", "s16le",
-                                "-ar", str(self.parsed.piper_rate),
+                                "-ar", str(self.config.rate),
                                 "-ac", "1",
                                 "-",
                             ],
@@ -229,7 +230,7 @@ class Piper(TTS):
                         )
 
                         aplay_proc = subprocess.Popen(
-                            ["aplay", "-f", "S16_LE", "-c", "1", "-r", str(self.parsed.piper_rate)],
+                            ["aplay", "-f", "S16_LE", "-c", "1", "-r", str(self.config.rate)],
                             stdin=ffmpeg_proc.stdout,
                             stdout=subprocess.PIPE,
                         )
@@ -272,7 +273,7 @@ class Piper(TTS):
                     try:
                         for audio_bytes in self.piper_voice.synthesize_stream_raw(
                             text,
-                            sentence_silence=self.parsed.piper_sentence_silence,
+                            sentence_silence=self.config.sentence_silence,
                         ):
                             if self.reset_issued.get():
                                 break
@@ -291,7 +292,7 @@ class Piper(TTS):
                         self.play_queue.put(STREAM_START)
                         for audio_bytes in self.piper_voice.synthesize_stream_raw(
                             text,
-                            sentence_silence=self.parsed.piper_sentence_silence,
+                            sentence_silence=self.config.sentence_silence,
                         ):
                             if self.reset_issued.get():
                                 break
@@ -320,7 +321,7 @@ class Piper(TTS):
 
         done = lambda: audio if getaudio else None
 
-        if self.parsed.piper_one_sentence:
+        if self.config.one_sentence:
             tokens = text.split(".")
             for i in range(len(tokens)):
                 tokens[i] = tokens[i].strip() + "."

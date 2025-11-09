@@ -7,6 +7,7 @@ from typing import Any, Dict, Optional, Union
 
 from unidecode import unidecode
 
+from config import TextConfig, PiperConfig
 from services.clipboard import Clipboard
 from tts import TTS
 from .ports import ReaderController
@@ -22,16 +23,21 @@ class DefaultReaderController(ReaderController):
     Keeps HTTP-independent logic here; web layer provides only decoded text and flags.
     """
 
-    def __init__(self, *, parsed, tts: TTS, clipboard: Optional[Clipboard], notifier: Optional[Notifier] = None):
-        self.parsed = parsed
+    def __init__(
+        self,
+        *,
+        text_config: TextConfig,
+        piper_config: PiperConfig,
+        tts: TTS,
+        clipboard: Optional[Clipboard],
+        notifier: Optional[Notifier] = None
+    ):
+        self.text_config = text_config
+        self.piper_config = piper_config  # Shared with Piper backend
         self.tts = tts
         self.clipboard = clipboard
         self.notifier = notifier
         self.begin_time = time.time()
-
-        # Clamp initial values defensively
-        self.parsed.volume = max(0.0, min(self.parsed.volume, 1.0))
-        self.parsed.speed = max(0.0, min(self.parsed.speed, 10.0))
 
     # -----------------
     # Public operations
@@ -68,7 +74,14 @@ class DefaultReaderController(ReaderController):
         return {
             "self": {
                 "uptime()": self._uptime(),
-                "parsed": self.parsed.__dict__,
+                "text_config": {
+                    "ignore_chars": self.text_config.ignore_chars,
+                    "ignore_newline": self.text_config.ignore_newline,
+                },
+                "piper_config": {
+                    "speed": self.piper_config.speed,
+                    "volume": self.piper_config.volume,
+                },
             },
             "self.tts": self.tts.status(),
         }
@@ -94,22 +107,22 @@ class DefaultReaderController(ReaderController):
         self._notify("Skipped current item")
 
     def set_speed(self, value: float) -> None:
-        self.parsed.speed = max(0.0, min(value, 10.0))
-        self._notify(f"Speed set to {self.parsed.speed:.2f}x")
+        self.piper_config.speed = max(0.0, min(value, 10.0))
+        self._notify(f"Speed set to {self.piper_config.speed:.2f}x")
 
     def set_volume(self, value: float) -> None:
-        self.parsed.volume = max(0.0, min(value, 1.0))
-        self._notify(f"Volume set to {self.parsed.volume:.2f}")
+        self.piper_config.volume = max(0.0, min(value, 1.0))
+        self._notify(f"Volume set to {self.piper_config.volume:.2f}")
 
     # -----------------
     # Internal helpers
     # -----------------
     def _sanitize_text(self, text: str) -> str:
         # Remove ignored chars
-        for ch in getattr(self.parsed, "ignore_chars", []) or []:
+        for ch in self.text_config.ignore_chars:
             text = text.replace(ch, "")
         # Collapse newlines if requested
-        if getattr(self.parsed, "ignore_newline", False):
+        if self.text_config.ignore_newline:
             text = text.replace("\n", " ").replace("\r", " ")
         # Normalize unicode and hyphen artifacts
         text = unidecode(text.strip()).replace("‐\n", "").replace("‐ ", "")

@@ -4,6 +4,7 @@ import platform
 
 import uvicorn
 
+from config import AppConfig, PiperConfig, TextConfig
 from piper_backend import Piper
 from speechd_backend import Speechd
 from services.clipboard import build_clipboard
@@ -109,26 +110,56 @@ if __name__ == "__main__":
         encoding="utf-8", level=logging.DEBUG if parsed.debug else logging.INFO
     )
 
+    app_config = AppConfig(
+        ip=parsed.ip,
+        port=parsed.port,
+        debug=parsed.debug,
+        log_level=parsed.log_level,
+    )
+
+    piper_config = PiperConfig(
+        model=parsed.piper_model,
+        model_config=parsed.piper_model_config,
+        rate=parsed.piper_rate,
+        sentence_silence=parsed.piper_sentence_silence,
+        one_sentence=parsed.piper_one_sentence,
+        volume=parsed.volume,
+        speed=parsed.speed,
+    )
+
+    text_config = TextConfig(
+        ignore_chars=parsed.ignore_chars,
+        ignore_newline=parsed.ignore_newline,
+    )
+
+    # Build dependencies via factories
     clipboard = build_clipboard(parsed)
     if platform.system() == "Windows" and clipboard is None:
         logger.warning(
             "pyperclip not available. GET requests for clipboard reading will not work on Windows."
         )
 
-    tts = Speechd(parsed) if parsed.speechd else Piper(parsed)
+    # Note: Speechd still receives parsed for now (can be refactored later)
+    tts = Speechd(parsed) if parsed.speechd else Piper(piper_config)
 
     notifier = build_notifier()
 
     if not tts.inited:
         raise SystemExit("Failed to initialize the TTS backend")
 
-    controller = DefaultReaderController(parsed=parsed, tts=tts, clipboard=clipboard, notifier=notifier)
+    controller = DefaultReaderController(
+        text_config=text_config,
+        piper_config=piper_config,
+        tts=tts,
+        clipboard=clipboard,
+        notifier=notifier,
+    )
     app = create_app(controller)
 
     uvicorn.run(
         app,
-        host=parsed.ip,
-        port=parsed.port,
-        log_level="debug" if parsed.debug else "info",
-        access_log=parsed.debug,
+        host=app_config.ip,
+        port=app_config.port,
+        log_level="debug" if app_config.debug else "info",
+        access_log=app_config.debug,
     )
