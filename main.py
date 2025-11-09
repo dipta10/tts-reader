@@ -131,8 +131,7 @@ if __name__ == "__main__":
         ignore_newline=parsed.ignore_newline,
     )
 
-    # Build dependencies via factories
-    clipboard = build_clipboard(parsed)
+    clipboard = build_clipboard(use_wayland=parsed.wayland)
     if platform.system() == "Windows" and clipboard is None:
         logger.warning(
             "pyperclip not available. GET requests for clipboard reading will not work on Windows."
@@ -140,7 +139,7 @@ if __name__ == "__main__":
 
     tts = build_tts(piper_config, use_speechd=parsed.speechd)
 
-    notifier = build_notifier()
+    notifier = build_notifier(app_name="tts-reader")
 
     if not tts.inited:
         raise SystemExit("Failed to initialize the TTS backend")

@@ -11,7 +11,18 @@ from .linux import LinuxClipboard
 logger = logging.getLogger(__name__)
 
 
-def build_clipboard(parsed) -> Optional[Clipboard]:
+def build_clipboard(use_wayland: bool = False) -> Optional[Clipboard]:
+    """Factory function to build platform-specific clipboard implementation.
+
+    Args:
+        use_wayland: If True, use wl-paste on Linux (Wayland). If False, use xclip (X11).
+                     Ignored on Windows.
+
+    Returns:
+        Clipboard implementation appropriate for the current platform, or None if unavailable.
+        - Windows: WindowsClipboard (requires pyperclip)
+        - Linux: LinuxClipboard (requires wl-paste or xclip binaries)
+    """
     system = platform.system()
     if system == "Windows":
         try:
@@ -21,5 +32,5 @@ def build_clipboard(parsed) -> Optional[Clipboard]:
             return None
         return WindowsClipboard(pyperclip)
 
-    return LinuxClipboard(bool(getattr(parsed, "wayland", False)))
+    return LinuxClipboard(use_wayland)
 
