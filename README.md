@@ -7,6 +7,8 @@ Select and read aloud text from anywhere 🔊
 **Prerequisites:**
 - Python 3.9 or higher
 - `ffmpeg` and `aplay` (Linux) installed on your system
+- xclip
+- wl-clipboard (Wayland only)
 
 Run the automated setup script:
 ```bash
@@ -34,7 +36,8 @@ If you prefer to set up manually or need a different voice model, follow these s
 - Python 3.9 or higher (Python 3.10.12+ recommended for Piper compatibility)
 - ffmpeg
 - aplay (Linux) / working audio output (Windows)
-- wl-clipboard (Wayland only) or xclip (X11 only)
+- xclip
+- wl-clipboard (Wayland only)
 
 ### Steps
 
