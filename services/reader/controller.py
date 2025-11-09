@@ -9,7 +9,7 @@ from unidecode import unidecode
 
 from config import TextConfig, PiperConfig
 from services.clipboard import Clipboard
-from tts import TTS
+from services.tts import TTS
 from .ports import ReaderController
 from services.notify import Notifier
 

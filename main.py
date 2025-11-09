@@ -5,8 +5,7 @@ import platform
 import uvicorn
 
 from config import AppConfig, PiperConfig, TextConfig
-from piper_backend import Piper
-from speechd_backend import Speechd
+from services.tts import build_tts
 from services.clipboard import build_clipboard
 from services.reader import DefaultReaderController
 from web.app import create_app
@@ -139,8 +138,7 @@ if __name__ == "__main__":
             "pyperclip not available. GET requests for clipboard reading will not work on Windows."
         )
 
-    # Note: Speechd still receives parsed for now (can be refactored later)
-    tts = Speechd(parsed) if parsed.speechd else Piper(piper_config)
+    tts = build_tts(piper_config, use_speechd=parsed.speechd)
 
     notifier = build_notifier()
 

@@ -1,4 +1,4 @@
-from tts import TTS
+from .ports import TTS
 import logging
 import time
 
