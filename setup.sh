@@ -72,9 +72,23 @@ else
 fi
 
 # Activate virtual environment
-echo "Activating virtual environment..."
-source venv/bin/activate
+case "$(uname -s)" in
+    CYGWIN*|MINGW*|MSYS*)
+        VENV_ACTIVATE_PATH="venv/Scripts/activate"
+        ;;
+    *)
+        VENV_ACTIVATE_PATH="venv/bin/activate"
+        ;;
+esac
 
+echo "Activating virtual environment..."
+
+# Check if the activation script exists before sourcing
+if [ -f "$VENV_ACTIVATE_PATH" ]; then
+    source "$VENV_ACTIVATE_PATH"
+else
+    echo "Error: Virtual environment activation script not found at $VENV_ACTIVATE_PATH"
+fi
 # Install main requirements
 echo "Installing main dependencies..."
 pip install -r requirements.txt
@@ -106,7 +120,7 @@ echo "✅ Setup complete!"
 echo ""
 echo "To run the application:"
 echo "  1. Activate the virtual environment:"
-echo "       source venv/bin/activate"
+echo "       source $VENV_ACTIVATE_PATH"
 echo ""
 echo "  2. Start the server:"
 echo "       $PYTHON_CMD main.py --port 5000 --piper-model models/en_US-hfc_male-medium.onnx --piper-model-config models/en_US-hfc_male-medium.onnx.json"

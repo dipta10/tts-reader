@@ -3,3 +3,4 @@ uvicorn[standard]==0.38.0
 Unidecode==1.3.8
 desktop-notifier>=6.0.0; sys_platform != 'win32'
 winotify>=1.1.0; sys_platform == 'win32'
+pyperclip==1.11.0; sys_platform == 'win32'
