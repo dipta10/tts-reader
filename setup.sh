@@ -6,11 +6,20 @@ echo "🔧 Setting up TTS Reader..."
 echo ""
 
 # Detect Python executable (prefer python3, fallback to python)
-if command -v python3 &> /dev/null; then
-    PYTHON_CMD="python3"
-elif command -v python &> /dev/null; then
-    PYTHON_CMD="python"
-else
+# Validate that the command actually works (not just a stub)
+PYTHON_CMD=""
+
+for cmd in python3 python; do
+    if command -v $cmd &> /dev/null; then
+        # Test if the command actually works (not a Windows Store stub)
+        if $cmd --version &> /dev/null; then
+            PYTHON_CMD="$cmd"
+            break
+        fi
+    fi
+done
+
+if [ -z "$PYTHON_CMD" ]; then
     echo "❌ Error: Python is not installed or not in PATH."
     echo "   Please install Python 3.9 or higher and try again."
     exit 1
