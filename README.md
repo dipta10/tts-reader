@@ -2,13 +2,15 @@
 
 Select and read aloud text from anywhere 🔊
 
-## Quick Setup
+## Requirements
 
-**Prerequisites:**
-- Python 3.9 or higher
-- `ffmpeg` and `aplay` (Linux) installed on your system
+- Python 3.9 - 3.12 (Python 3.13+ not yet supported due to numpy compatibility)
+- `ffmpeg` 
+- `aplay` (Linux Only)
 - xclip
 - wl-clipboard (Wayland only)
+
+## Quick Setup
 
 Run the automated setup script:
 ```bash
@@ -30,14 +32,6 @@ python main.py --port 5000 --piper-model models/en_US-hfc_male-medium.onnx --pip
 ## Manual Setup
 
 If you prefer to set up manually or need a different voice model, follow these steps (these are the same steps automated in `setup.sh`):
-
-### Requirements
-
-- Python 3.9 or higher (Python 3.10.12+ recommended for Piper compatibility)
-- ffmpeg
-- aplay (Linux) / working audio output (Windows)
-- xclip
-- wl-clipboard (Wayland only)
 
 ### Steps
 
