@@ -20,10 +20,32 @@ class _FFplayHandle(PlaybackHandle):
         return self._proc.returncode or 0
 
     def terminate(self) -> None:
+        # TODO: LLM Generated code, yet to review this code.
         try:
-            if self.is_running():
-                self._proc.terminate()
+            # 1. Try the polite way first (send 'q' to ffplay stdin)
+            if self._proc.stdin and self._proc.poll() is None:
+                try:
+                    self._proc.stdin.write(b'q')
+                    self._proc.stdin.flush()
+                except:
+                    pass
+
+            # 2. Get the PID
+            pid = self._proc.pid
+
+            # 3. Use the Windows "Force" command
+            # /F = Force, /T = Task Tree (kills children)
+            import subprocess
+            subprocess.run(
+                ['taskkill', '/F', '/T', '/PID', str(pid)],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                creationflags=0x08000000  # CREATE_NO_WINDOW
+            )
+        except Exception as e:
+            print(f"Terminate error: {e}")
         finally:
+            # Always run cleanup to delete the temp file
             self._cleanup()
 
     def is_running(self) -> bool:
