@@ -77,6 +77,13 @@ class DefaultReaderController(ReaderController):
                 "text_config": {
                     "ignore_chars": self.text_config.ignore_chars,
                     "ignore_newline": self.text_config.ignore_newline,
+                    "replacements": [
+                        {
+                            "from": replacement.from_text,
+                            "to": replacement.to_text,
+                        }
+                        for replacement in self.text_config.replacements
+                    ],
                 },
                 "piper_config": {
                     "speed": self.piper_config.speed,
@@ -118,6 +125,8 @@ class DefaultReaderController(ReaderController):
     # Internal helpers
     # -----------------
     def _sanitize_text(self, text: str) -> str:
+        for replacement in self.text_config.replacements:
+            text = text.replace(replacement.from_text, replacement.to_text)
         # Remove ignored chars
         for ch in self.text_config.ignore_chars:
             text = text.replace(ch, "")

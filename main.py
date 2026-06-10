@@ -3,7 +3,7 @@ import logging
 
 import uvicorn
 
-from config import AppConfig, PiperConfig, TextConfig
+from config import AppConfig, PiperConfig, TextConfig, load_text_config
 from services.platform import Platform
 from services.tts import build_tts
 from services.clipboard import build_clipboard
@@ -21,6 +21,12 @@ if __name__ == "__main__":
     )
     parser.add_argument("--ip", type=str, default="127.0.0.1", help="IP address")
     parser.add_argument("--port", type=int, default=5000, help="Port")
+    parser.add_argument(
+        "--config",
+        type=str,
+        default=None,
+        help="Path to JSON configuration file",
+    )
     parser.add_argument(
         "--wayland",
         default=False,
@@ -79,7 +85,7 @@ if __name__ == "__main__":
     parser.add_argument(
         '--ignore_chars',
         nargs='*',
-        default=[],
+        default=None,
         help='List of characters to ignore'
     )
 
@@ -126,9 +132,16 @@ if __name__ == "__main__":
         speed=parsed.speed,
     )
 
+    file_text_config = load_text_config(parsed.config) if parsed.config else TextConfig()
+    ignore_chars = (
+        parsed.ignore_chars
+        if parsed.ignore_chars is not None
+        else file_text_config.ignore_chars or ["*", "\n"]
+    )
     text_config = TextConfig(
-        ignore_chars=parsed.ignore_chars,
+        ignore_chars=ignore_chars,
         ignore_newline=parsed.ignore_newline,
+        replacements=file_text_config.replacements,
     )
 
     clipboard = build_clipboard(use_wayland=parsed.wayland)
@@ -158,5 +171,5 @@ if __name__ == "__main__":
         host=app_config.ip,
         port=app_config.port,
         log_level="debug" if app_config.debug else "info",
-        access_log=app_config.debug,
+        access_log=True,
     )

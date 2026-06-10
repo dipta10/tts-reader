@@ -97,6 +97,31 @@ Ignore certain characters when reading (set at startup):
 python main.py --ignore_chars '*' '-'
 ```
 
+By default, `*` and newline characters are ignored.
+
+Load phrase replacements from a JSON config file:
+```bash
+python main.py --config tts-reader.config.example.json
+```
+
+Example config:
+```json
+{
+  "text": {
+    "ignore_chars": [
+      "*",
+      "\n"
+    ],
+    "replacements": [
+      {
+        "from": "asyncio",
+        "to": "Async IO"
+      }
+    ]
+  }
+}
+```
+
 ## Setting Up Keybindings
 
 For practical usage, you can set up keyboard shortcuts in your desktop environment or window manager:
