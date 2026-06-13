@@ -115,12 +115,16 @@ Example config:
     "replacements": [
       {
         "from": "asyncio",
-        "to": "Async IO"
+        "to": "Async IO",
+        "case_sensitive": false
       }
     ]
   }
 }
 ```
+
+The optional `case_sensitive` field defaults to `true`. Set it to `false` to
+replace matches regardless of casing.
 
 ## Setting Up Keybindings
 

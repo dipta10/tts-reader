@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import datetime
 import logging
+import re
 import time
 from typing import Any, Dict, Optional, Union
 
@@ -81,6 +82,7 @@ class DefaultReaderController(ReaderController):
                         {
                             "from": replacement.from_text,
                             "to": replacement.to_text,
+                            "case_sensitive": replacement.case_sensitive,
                         }
                         for replacement in self.text_config.replacements
                     ],
@@ -126,7 +128,15 @@ class DefaultReaderController(ReaderController):
     # -----------------
     def _sanitize_text(self, text: str) -> str:
         for replacement in self.text_config.replacements:
-            text = text.replace(replacement.from_text, replacement.to_text)
+            if replacement.case_sensitive:
+                text = text.replace(replacement.from_text, replacement.to_text)
+            else:
+                text = re.sub(
+                    re.escape(replacement.from_text),
+                    lambda _: replacement.to_text,
+                    text,
+                    flags=re.IGNORECASE,
+                )
         # Remove ignored chars
         for ch in self.text_config.ignore_chars:
             text = text.replace(ch, "")

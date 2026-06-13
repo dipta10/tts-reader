@@ -12,6 +12,7 @@ class TextReplacement:
 
     from_text: str
     to_text: str
+    case_sensitive: bool = True
 
 
 @dataclass
@@ -31,7 +32,7 @@ def load_text_config(path: str) -> TextConfig:
       "text": {
         "ignore_chars": ["*", "\n"],
         "replacements": [
-          {"from": "asyncio", "to": "Async IO"}
+          {"from": "asyncio", "to": "Async IO", "case_sensitive": false}
         ]
       }
     }
@@ -68,9 +69,18 @@ def _parse_replacement(index: int, item: Any) -> TextReplacement:
 
     from_text = item.get("from")
     to_text = item.get("to")
+    case_sensitive = item.get("case_sensitive", True)
     if not isinstance(from_text, str) or not from_text:
         raise ValueError(f"Replacement at index {index} must have a non-empty 'from'")
     if not isinstance(to_text, str):
         raise ValueError(f"Replacement at index {index} must have a string 'to'")
+    if not isinstance(case_sensitive, bool):
+        raise ValueError(
+            f"Replacement at index {index} must have a boolean 'case_sensitive'"
+        )
 
-    return TextReplacement(from_text=from_text, to_text=to_text)
+    return TextReplacement(
+        from_text=from_text,
+        to_text=to_text,
+        case_sensitive=case_sensitive,
+    )
