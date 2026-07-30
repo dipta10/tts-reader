@@ -1,174 +1,19 @@
-from desktop_notifier import DesktopNotifier
-from flask import Flask, request
-from unidecode import unidecode
-from locked import Locked
-from piper_backend import Piper
-from speechd_backend import Speechd
 import argparse
 import logging
-import shutil
-import time
-import datetime
-import subprocess
+
+import uvicorn
+
+from config import AppConfig, PiperConfig, TextConfig, load_text_config
+from services.platform import Platform
+from services.tts import build_tts
+from services.clipboard import build_clipboard
+from services.reader import DefaultReaderController
+from web.app import create_app
+from services.notify import build_notifier
+
 
 logger = logging.getLogger(__name__)
-
-
-class App:
-    def __init__(self, parsed):
-        self.parsed = parsed
-        self.parsed.volume = max(0.0, min(self.parsed.volume, 1.0))
-        self.parsed.speed = max(0.0, min(self.parsed.speed, 10.0))
-
-        self.begin_time = time.time()
-        self.notifier = DesktopNotifier()
-
-        self.flask = Flask("tts-reader")
-        self.flask.add_url_rule(
-            "/read", "read", view_func=self.read, methods=["GET", "POST"]
-        )
-        self.flask.add_url_rule("/play", "play", view_func=self.play)
-        self.flask.add_url_rule("/pause", "pause", view_func=self.pause)
-        self.flask.add_url_rule("/toggle", "toggle", view_func=self.toggle)
-        self.flask.add_url_rule("/reset", "reset", view_func=self.reset)
-        self.flask.add_url_rule("/skip", "skip", view_func=self.skip)
-        self.flask.add_url_rule("/volume/<float:data>", "volume", view_func=self.volume)
-        self.flask.add_url_rule("/speed/<float:data>", "speed", view_func=self.speed)
-        self.flask.add_url_rule("/status", "status", view_func=self.status)
-
-        self.wlpaste_path = shutil.which("wl-paste")
-        self.xclip_path = shutil.which("xclip")
-        if self.parsed.wayland is True:
-            if self.wlpaste_path is None:
-                raise Exception("Couldn't find the wl-paste binary")
-        else:
-            if self.xclip_path is None:
-                raise Exception("Couldn't find the xclip binary")
-
-        self.tts = Speechd(self.parsed) if self.parsed.speechd else Piper(self.parsed)
-        if not self.tts.inited:
-            raise Exception("Failed to initialize the TTS backend")
-
-    def read(self):
-        num_chars = 0
-
-        getaudio = request.args.get("getaudio", None) is not None
-
-        if request.method == "POST":
-            if len(request.data) > 0:
-                try:
-                    text = request.data.decode("utf-8")
-                except UnicodeError as e:
-                    s = "Failed to decode the POSTed data as UTF-8"
-                    logger.error("%s: %s", s, repr(e))
-                    self.notify(s)
-                    return s
-
-                num_chars = len(text)
-
-            else:
-                s = "Failed to get the POSTed data"
-                logger.error(
-                    "%s: Empty post request maybe because the content type header (%s) is wrong",
-                    s,
-                    request.content_type,
-                )
-                self.notify(s)
-                return s
-
-        else:
-            try:
-                out = subprocess.run(
-                    [self.wlpaste_path, "-p"]
-                    if self.parsed.wayland
-                    else [self.xclip_path, "-o", "-selection primary"],
-                    check=True,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                ).stdout
-
-                try:
-                    text = out.decode("utf-8")
-                except UnicodeError as e:
-                    s = "Failed to decode the selection clipboard data as UTF-8"
-                    logger.error("%s: %s", s, repr(e))
-                    self.notify(s)
-                    return s
-
-                num_chars = len(text)
-
-            except subprocess.CalledProcessError as e:
-                s = "Failed to get the clipboard contents. Maybe the selection clipboard is empty?"
-                logger.error("%s: %s", s, repr(e))
-                self.notify(s)
-                return s
-
-        for char in self.parsed.ignore_chars:
-            text = text.replace(char, "")
-        text = unidecode(text.strip()).replace("‐\n", "").replace("‐ ", "")
-        if len(text) == 0:
-            s = "Skipped processing empty text"
-            self.notify(s)
-            return s
-
-        s = f"Queued text of {num_chars} characters for the TTS"
-        self.notify(s)
-
-        audio = self.tts.speak(text, getaudio)
-
-        return audio if getaudio else s
-
-    def status(self):
-        return {
-            "self": {
-                "uptime()": self.uptime(),
-                "parsed": self.parsed.__dict__,
-            },
-            "self.tts": self.tts.status(),
-        }
-
-    def toggle(self):
-        self.tts.toggle()
-        return ""
-
-    def play(self):
-        self.tts.play()
-        return ""
-
-    def pause(self):
-        self.tts.pause()
-        return ""
-
-    def reset(self):
-        self.tts.reset()
-        return ""
-
-    def skip(self):
-        self.tts.skip()
-        return ""
-
-    def speed(self, data):
-        data = max(0.0, min(data, 10.0))
-        self.parsed.speed = data
-        return ""
-
-    def volume(self, data):
-        data = max(0.0, min(data, 1.0))
-        self.parsed.volume = data
-        return ""
-
-    def uptime(self):
-        diff = time.time() - self.begin_time
-        return str(datetime.timedelta(seconds=int(diff)))
-
-    def run(self):
-        self.flask.run(
-            host=self.parsed.ip, port=self.parsed.port, debug=self.parsed.debug
-        )
-
-    def notify(self, msg):
-        self.notifier.send_sync(title="TTS Reader", message=msg, timeout=2)
-
+logger.setLevel(logging.INFO)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
@@ -176,6 +21,12 @@ if __name__ == "__main__":
     )
     parser.add_argument("--ip", type=str, default="127.0.0.1", help="IP address")
     parser.add_argument("--port", type=int, default=5000, help="Port")
+    parser.add_argument(
+        "--config",
+        type=str,
+        default=None,
+        help="Path to JSON configuration file",
+    )
     parser.add_argument(
         "--wayland",
         default=False,
@@ -229,20 +80,96 @@ if __name__ == "__main__":
         "--debug",
         default=False,
         action=argparse.BooleanOptionalAction,
-        help="Enable flask debug mode (developmental purposes)",
+        help="Enable debug mode (developmental purposes)",
     )
     parser.add_argument(
-        '--ignore_chars', 
-        nargs='*', 
-        default=[], 
+        '--ignore_chars',
+        nargs='*',
+        default=None,
         help='List of characters to ignore'
     )
 
+    parser.add_argument(
+        "--log-level",
+        type=str,
+        default="INFO",
+        choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
+        help="Set the logging level",
+    )
+
+    parser.add_argument(
+        "--ignore_newline",
+        action="store_true",
+        help="Ignore newline characters",
+    )
+
     parsed = parser.parse_args()
+
+    try:
+        if parsed.log_level:
+            logging.getLogger().setLevel(parsed.log_level)
+    except Exception as e:
+        logger.error("Error setting log level")
 
     logging.basicConfig(
         encoding="utf-8", level=logging.DEBUG if parsed.debug else logging.INFO
     )
 
-    app = App(parsed)
-    app.run()
+    app_config = AppConfig(
+        ip=parsed.ip,
+        port=parsed.port,
+        debug=parsed.debug,
+        log_level=parsed.log_level,
+    )
+
+    piper_config = PiperConfig(
+        model=parsed.piper_model,
+        model_config=parsed.piper_model_config,
+        rate=parsed.piper_rate,
+        sentence_silence=parsed.piper_sentence_silence,
+        one_sentence=parsed.piper_one_sentence,
+        volume=parsed.volume,
+        speed=parsed.speed,
+    )
+
+    file_text_config = load_text_config(parsed.config) if parsed.config else TextConfig()
+    ignore_chars = (
+        parsed.ignore_chars
+        if parsed.ignore_chars is not None
+        else file_text_config.ignore_chars or ["*", "\n"]
+    )
+    text_config = TextConfig(
+        ignore_chars=ignore_chars,
+        ignore_newline=parsed.ignore_newline,
+        replacements=file_text_config.replacements,
+    )
+
+    clipboard = build_clipboard(use_wayland=parsed.wayland)
+    if Platform.is_windows() and clipboard is None:
+        logger.warning(
+            "pyperclip not available. GET requests for clipboard reading will not work on Windows."
+        )
+
+    tts = build_tts(piper_config, use_speechd=parsed.speechd)
+
+    notifier = build_notifier(app_name="tts-reader")
+
+    if not tts.inited:
+        raise SystemExit("Failed to initialize the TTS backend")
+
+    controller = DefaultReaderController(
+        text_config=text_config,
+        piper_config=piper_config,
+        tts=tts,
+        clipboard=clipboard,
+        notifier=notifier,
+    )
+    app = create_app(controller)
+
+    uvicorn.run(
+        app,
+        host=app_config.ip,
+        port=app_config.port,
+        log_level="debug" if app_config.debug else "info",
+        access_log=True,
+    )

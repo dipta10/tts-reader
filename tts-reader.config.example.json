@@ -1,0 +1,25 @@
+{
+  "text": {
+    "ignore_chars": [
+      "*",
+      "\n"
+    ],
+    "replacements": [
+      {
+        "from": "asyncio",
+        "to": "Async IO",
+        "case_sensitive": false
+      },
+      {
+        "from": "i/o",
+        "to": "IO",
+        "case_sensitive": false
+      },
+      {
+        "from": ".com",
+        "to": " dotcom",
+        "case_sensitive": false
+      }
+    ]
+  }
+}
