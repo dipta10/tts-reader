@@ -1,6 +1,7 @@
 from .ports import TTS
 import logging
 import queue
+import re
 import shutil
 import signal
 import subprocess
@@ -17,6 +18,16 @@ logger = logging.getLogger(__name__)
 STREAM_START = object()
 STREAM_END = object()
 RESET = object()
+
+
+# Split only after sentence-ending periods, keeping dotted tokens like domains intact.
+def split_sentences(text: str) -> list[str]:
+    sentences = re.split(r"(?<=\.)\s+", text.strip())
+    return [
+        sentence if sentence.endswith(".") else sentence + "."
+        for sentence in sentences
+        if sentence
+    ]
 
 
 class Piper(TTS):
@@ -460,9 +471,7 @@ class Piper(TTS):
         done = lambda: audio if getaudio else None
 
         if self.config.one_sentence:
-            tokens = text.split(".")
-            for i in range(len(tokens)):
-                tokens[i] = tokens[i].strip() + "."
+            tokens = split_sentences(text)
 
         self.reset_issued.set(False)
         request_epoch = self._current_reset_epoch()
